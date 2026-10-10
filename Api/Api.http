@@ -1,6 +1,182 @@
-@Api_HostAddress = http://localhost:5289
+@baseUrl = http://localhost:5289
+@zonaId = 00000000-0000-0000-0000-000000000000
+@repartidorId = 00000000-0000-0000-0000-000000000000
+@pedidoId = 00000000-0000-0000-0000-000000000000
+@rutaId = 00000000-0000-0000-0000-000000000000
 
-GET {{Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### ---------- Zonas ----------
 
-###
+### Crear zona (polígono en lat/long)
+POST {{baseUrl}}/api/zonas
+Content-Type: application/json
+
+{
+  "nombre": "Centro",
+  "maxPedidosPorRuta": 4,
+  "poligono": [
+    { "latitud": -0.20, "longitud": -78.50 },
+    { "latitud": -0.20, "longitud": -78.46 },
+    { "latitud": -0.16, "longitud": -78.46 },
+    { "latitud": -0.16, "longitud": -78.50 }
+  ]
+}
+
+### Listar zonas
+GET {{baseUrl}}/api/zonas
+
+### Obtener zona
+GET {{baseUrl}}/api/zonas/{{zonaId}}
+
+### Actualizar zona
+PUT {{baseUrl}}/api/zonas/{{zonaId}}
+Content-Type: application/json
+
+{
+  "nombre": "Centro histórico",
+  "maxPedidosPorRuta": 4,
+  "activa": true,
+  "poligono": [
+    { "latitud": -0.20, "longitud": -78.50 },
+    { "latitud": -0.20, "longitud": -78.46 },
+    { "latitud": -0.16, "longitud": -78.46 },
+    { "latitud": -0.16, "longitud": -78.50 }
+  ]
+}
+
+### ---------- Repartidores ----------
+
+### Crear repartidor
+POST {{baseUrl}}/api/repartidores
+Content-Type: application/json
+
+{ "nombre": "Ana Torres", "telefono": "0991111111", "capacidadMaxima": 4 }
+
+### Listar repartidores disponibles
+GET {{baseUrl}}/api/repartidores?soloDisponibles=true
+
+### Cambiar disponibilidad
+PUT {{baseUrl}}/api/repartidores/{{repartidorId}}/disponibilidad
+Content-Type: application/json
+
+{ "disponible": false }
+
+### Ruta activa del repartidor en una fecha
+GET {{baseUrl}}/api/repartidores/{{repartidorId}}/ruta?fecha=2026-10-11
+
+### ---------- Pedidos ----------
+
+### Registrar pedido con anticipación (queda pendiente hasta armar rutas)
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+
+{
+  "clienteNombre": "María Pérez",
+  "clienteTelefono": "0980000001",
+  "direccion": "Av. Amazonas N24",
+  "latitud": -0.18,
+  "longitud": -78.48,
+  "fechaEntrega": "2026-10-11",
+  "horaEntrega": "14:00:00"
+}
+
+### Registrar pedido para HOY (último momento: se inserta en una ruta o crea una nueva)
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+
+{
+  "clienteNombre": "Luis Mora",
+  "clienteTelefono": "0980000002",
+  "direccion": "Calle Quito 123",
+  "latitud": -0.181,
+  "longitud": -78.481,
+  "fechaEntrega": "2026-10-10",
+  "horaEntrega": "18:00:00"
+}
+
+### Error esperado 422: dirección fuera de toda zona
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+
+{
+  "clienteNombre": "Fuera de zona",
+  "clienteTelefono": "0980000003",
+  "direccion": "Lejos",
+  "latitud": 10,
+  "longitud": 10,
+  "fechaEntrega": "2026-10-11",
+  "horaEntrega": "10:00:00"
+}
+
+### Error esperado 400: datos inválidos
+POST {{baseUrl}}/api/pedidos
+Content-Type: application/json
+
+{
+  "clienteNombre": "",
+  "clienteTelefono": "",
+  "direccion": "",
+  "latitud": 0,
+  "longitud": 0,
+  "fechaEntrega": "2026-10-11",
+  "horaEntrega": "10:00:00"
+}
+
+### Listar pedidos pendientes de una fecha (paginado)
+GET {{baseUrl}}/api/pedidos?fecha=2026-10-11&estado=Pendiente&pagina=1&tamano=50
+
+### Obtener pedido
+GET {{baseUrl}}/api/pedidos/{{pedidoId}}
+
+### Cancelar pedido (solo si sigue pendiente)
+POST {{baseUrl}}/api/pedidos/{{pedidoId}}/cancelar
+
+### ---------- Rutas ----------
+
+### Armar rutas de una fecha (todas las zonas activas)
+POST {{baseUrl}}/api/rutas/armar
+Content-Type: application/json
+
+{ "fecha": "2026-10-11" }
+
+### Armar rutas de una sola zona
+POST {{baseUrl}}/api/rutas/armar
+Content-Type: application/json
+
+{ "fecha": "2026-10-11", "zonaId": "{{zonaId}}" }
+
+### Listar rutas de una fecha
+GET {{baseUrl}}/api/rutas?fecha=2026-10-11
+
+### Obtener ruta con sus paradas
+GET {{baseUrl}}/api/rutas/{{rutaId}}
+
+### Ajuste manual: agregar un pedido pendiente a la ruta (posición base 0, opcional)
+POST {{baseUrl}}/api/rutas/{{rutaId}}/pedidos
+Content-Type: application/json
+
+{ "pedidoId": "{{pedidoId}}", "posicion": 0 }
+
+### Ajuste manual: quitar un pedido de la ruta
+DELETE {{baseUrl}}/api/rutas/{{rutaId}}/pedidos/{{pedidoId}}
+
+### El repartidor sale a reparto
+POST {{baseUrl}}/api/rutas/{{rutaId}}/iniciar
+
+### Cancelar una ruta que aún no salió
+POST {{baseUrl}}/api/rutas/{{rutaId}}/cancelar
+
+### ---------- Seguimiento (app del repartidor) ----------
+
+### Marcar pedido en camino
+POST {{baseUrl}}/api/seguimiento/pedidos/{{pedidoId}}/en-camino
+
+### Marcar pedido entregado (al entregar la última parada se cierra la ruta)
+POST {{baseUrl}}/api/seguimiento/pedidos/{{pedidoId}}/entregado
+
+### ---------- SignalR ----------
+# Hub: {{baseUrl}}/hubs/seguimiento
+# Métodos del cliente → servidor: SuscribirseAFecha(fecha), SuscribirseARepartidor(id), SeguirPedido(id)
+# Eventos servidor → cliente:      PedidoActualizado(PedidoDto), RutaActualizada(RutaDto)
+
+### Verificar que el hub responde (debe dar 200)
+POST {{baseUrl}}/hubs/seguimiento/negotiate?negotiateVersion=1
