@@ -1,0 +1,13 @@
+using Application.Common;
+using Application.Pedidos;
+using Application.Repartidores;
+using Application.Rutas;
+using Domain.Zonas;
+
+namespace Application.Zonas;
+
+public static class ZonaMapeos
+{
+    public static ZonaDto ToDto(this Zona z) => new(
+        z.Id, z.Nombre, z.Activa, z.MaxPedidosPorRuta, z.Poligono.Select(v => v.ToDto()).ToList());
+}
