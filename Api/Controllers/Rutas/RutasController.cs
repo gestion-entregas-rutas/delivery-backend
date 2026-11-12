@@ -9,6 +9,18 @@ namespace Api.Controllers;
 [Produces("application/json")]
 public sealed class RutasController(IRutaService rutas) : ControllerBase
 {
+    /// <summary>Reordena todas las paradas respetando el tramo iniciado y la versión de la ruta.</summary>
+    [HttpPut("{id:guid}/paradas/orden")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Administrador")]
+    public async Task<ActionResult<RutaDto>> Reordenar(Guid id, ReordenarParadasRequest r, CancellationToken ct) =>
+        await rutas.ReordenarAsync(id, r, ct);
+
+    /// <summary>Transfiere un pedido entre rutas de forma atómica. Comprueba ambas versiones.</summary>
+    [HttpPost("{id:guid}/pedidos/{pedidoId:guid}/transferir")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Administrador")]
+    public async Task<ActionResult<TransferenciaPedidoDto>> Transferir(Guid id, Guid pedidoId, TransferirPedidoRequest r, CancellationToken ct) =>
+        await rutas.TransferirAsync(id, pedidoId, r, ct);
+
     /// <summary>Arma las rutas de una fecha (y zona) con todos los pedidos pendientes.</summary>
     [HttpPost("armar")]
     [ProducesResponseType<ArmadoRutasDto>(StatusCodes.Status200OK)]

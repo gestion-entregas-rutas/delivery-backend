@@ -17,6 +17,15 @@ public sealed class NotificadorSignalR(IHubContext<SeguimientoHub> hub, ILogger<
         EnviarAsync(SeguimientoHub.Eventos.RutaActualizada, ruta,
             [SeguimientoHub.Grupos.Fecha(ruta.Fecha), SeguimientoHub.Grupos.Repartidor(ruta.RepartidorId)], ct);
 
+    public Task PedidoReprogramadoAsync(PedidoDto pedido, DateOnly fechaAnterior, CancellationToken ct = default) =>
+        EnviarAsync(SeguimientoHub.Eventos.PedidoActualizado, pedido,
+            new[] { SeguimientoHub.Grupos.Fecha(fechaAnterior), SeguimientoHub.Grupos.Fecha(pedido.FechaEntrega),
+                SeguimientoHub.Grupos.Pedido(pedido.Id) }.Distinct().ToArray(), ct);
+
+    public Task UbicacionActualizadaAsync(UbicacionRepartidorDto ubicacion, DateOnly fecha, CancellationToken ct = default) =>
+        EnviarAsync(SeguimientoHub.Eventos.UbicacionRepartidorActualizada, ubicacion,
+            [SeguimientoHub.Grupos.Fecha(fecha), SeguimientoHub.Grupos.Repartidor(ubicacion.RepartidorId)], ct);
+
     // Una falla de red hacia los clientes nunca debe deshacer ni romper la operación ya guardada.
     private async Task EnviarAsync(string evento, object carga, string[] grupos, CancellationToken ct)
     {

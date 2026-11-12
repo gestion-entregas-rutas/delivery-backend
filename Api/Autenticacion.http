@@ -1,0 +1,60 @@
+@baseUrl = http://localhost:5289
+@token = PEGAR_ACCESS_TOKEN
+@usuarioId = 00000000-0000-0000-0000-000000000001
+@repartidorId = 00000000-0000-0000-0000-000000000002
+
+### Login (reemplazar ejemplos; no guardar claves reales en este archivo)
+POST {{baseUrl}}/api/autenticacion/login
+Content-Type: application/json
+
+{"nombreUsuario":"usuario.ejemplo","clave":"Clave-Ejemplo2026!"}
+
+### Identidad y cambio pendiente (también disponible con token temporal)
+GET {{baseUrl}}/api/autenticacion/me
+Authorization: Bearer {{token}}
+
+### Cambio propio; reemplazar el token guardado con el accessToken de la respuesta
+PUT {{baseUrl}}/api/autenticacion/credenciales
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"claveActual":"Clave-Ejemplo2026!","nuevoNombreUsuario":"usuario.nuevo","nuevaClave":"Otra-Clave2026!Ejemplo"}
+
+### Administración: crear conductor vinculado a un repartidor existente
+POST {{baseUrl}}/api/usuarios
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"nombreUsuario":"conductor.ejemplo","claveTemporal":"Temporal-Ejemplo2026!","rol":"Conductor","repartidorId":"{{repartidorId}}"}
+
+### Administración: crear otro administrador
+POST {{baseUrl}}/api/usuarios
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"nombreUsuario":"admin.ejemplo","claveTemporal":"Temporal-Ejemplo2026!","rol":"Administrador","repartidorId":null}
+
+### Administración: listar cuentas
+GET {{baseUrl}}/api/usuarios
+Authorization: Bearer {{token}}
+
+### Administración: desactivar cuenta y revocar sus sesiones
+PUT {{baseUrl}}/api/usuarios/{{usuarioId}}/activo
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"activo":false}
+
+### Administración: restablecer contraseña temporal
+POST {{baseUrl}}/api/usuarios/{{usuarioId}}/restablecer-clave
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"claveTemporal":"Nueva-Temporal2026!Ejemplo"}
+
+### Cerrar todas las sesiones propias
+POST {{baseUrl}}/api/autenticacion/logout
+Authorization: Bearer {{token}}
+
+### Sin token: debe responder 401
+GET {{baseUrl}}/api/usuarios

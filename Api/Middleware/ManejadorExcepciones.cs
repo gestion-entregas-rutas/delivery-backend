@@ -17,6 +17,8 @@ public sealed class ManejadorExcepciones(ILogger<ManejadorExcepciones> logger) :
         // Los mensajes de estas excepciones los escribimos nosotros para el usuario, así que son seguros de mostrar.
         var problema = excepcion switch
         {
+            CredencialesInvalidasException => Crear(401, "No autenticado", excepcion.Message),
+            AccesoDenegadoException => Crear(403, "Acceso denegado", excepcion.Message),
             ValidationException v => ProblemaDeValidacion(v),
             NoEncontradoException => Crear(StatusCodes.Status404NotFound, "Recurso no encontrado", excepcion.Message),
             ConflictoException => Crear(StatusCodes.Status409Conflict, "Conflicto de concurrencia", excepcion.Message),
@@ -30,8 +32,14 @@ public sealed class ManejadorExcepciones(ILogger<ManejadorExcepciones> logger) :
         logger.LogWarning(excepcion, "Solicitud rechazada ({Estado}): {Mensaje}", problema.Status, excepcion.Message);
 
         problema.Instance = contexto.Request.Path;
+        problema.Extensions["traceId"] = System.Diagnostics.Activity.Current?.Id ?? contexto.TraceIdentifier;
         contexto.Response.StatusCode = problema.Status!.Value;
-        await contexto.Response.WriteAsJsonAsync(problema, ct);
+        // Conservar errors al serializar el subtipo; el contrato base ProblemDetails
+        // no incluye los errores de campos que necesita el formulario Angular.
+        if (problema is ValidationProblemDetails validacion)
+            await contexto.Response.WriteAsJsonAsync(validacion, ct);
+        else
+            await contexto.Response.WriteAsJsonAsync(problema, ct);
         return true;
     }
 

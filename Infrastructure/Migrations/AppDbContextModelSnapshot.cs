@@ -197,6 +197,106 @@ namespace Infrastructure.Migrations
                     b.ToTable("Rutas", (string)null);
                 });
 
+            modelBuilder.Entity("Domain.Entities.UltimaUbicacionRepartidor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CapturadaEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("PrecisionMetros")
+                        .HasColumnType("double precision");
+
+                    b.Property<Point>("Punto")
+                        .IsRequired()
+                        .HasColumnType("geometry (point, 4326)");
+
+                    b.Property<DateTimeOffset>("RecibidaEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RepartidorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RutaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RepartidorId")
+                        .IsUnique();
+
+                    b.HasIndex("RutaId");
+
+                    b.ToTable("UbicacionesRepartidores", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Usuario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activo")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("BloqueadoHasta")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ClaveHash")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("DebeCambiarCredenciales")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("IntentosFallidos")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NombreNormalizado")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NombreUsuario")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("RepartidorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Rol")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("SelloSeguridad")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NombreNormalizado")
+                        .IsUnique();
+
+                    b.HasIndex("RepartidorId")
+                        .IsUnique();
+
+                    b.ToTable("Usuarios", (string)null);
+                });
+
             modelBuilder.Entity("Domain.Entities.Zona", b =>
                 {
                     b.Property<Guid>("Id")
@@ -255,6 +355,56 @@ namespace Infrastructure.Migrations
                         .HasForeignKey("ZonaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.OwnsOne("Domain.ValueObjects.InformacionPedido", "Detalles", b1 =>
+                        {
+                            b1.Property<Guid>("PedidoId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<string>("DestinatarioCorreo")
+                                .HasMaxLength(254)
+                                .HasColumnType("character varying(254)");
+
+                            b1.Property<bool?>("Fragil")
+                                .HasColumnType("boolean");
+
+                            b1.Property<string>("Observaciones")
+                                .HasMaxLength(2000)
+                                .HasColumnType("character varying(2000)");
+
+                            b1.Property<decimal?>("PesoKg")
+                                .HasPrecision(12, 3)
+                                .HasColumnType("numeric(12,3)");
+
+                            b1.Property<string>("Prioridad")
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)");
+
+                            b1.Property<string>("RemitenteCorreo")
+                                .HasMaxLength(254)
+                                .HasColumnType("character varying(254)");
+
+                            b1.Property<string>("RemitenteNombre")
+                                .HasMaxLength(150)
+                                .HasColumnType("character varying(150)");
+
+                            b1.Property<string>("RemitenteTelefono")
+                                .HasMaxLength(30)
+                                .HasColumnType("character varying(30)");
+
+                            b1.Property<string>("TipoCarga")
+                                .HasMaxLength(30)
+                                .HasColumnType("character varying(30)");
+
+                            b1.HasKey("PedidoId");
+
+                            b1.ToTable("Pedidos");
+
+                            b1.WithOwner()
+                                .HasForeignKey("PedidoId");
+                        });
+
+                    b.Navigation("Detalles");
                 });
 
             modelBuilder.Entity("Domain.Entities.Ruta", b =>
@@ -270,6 +420,29 @@ namespace Infrastructure.Migrations
                         .HasForeignKey("ZonaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.UltimaUbicacionRepartidor", b =>
+                {
+                    b.HasOne("Domain.Entities.Repartidor", null)
+                        .WithMany()
+                        .HasForeignKey("RepartidorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Ruta", null)
+                        .WithMany()
+                        .HasForeignKey("RutaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.Usuario", b =>
+                {
+                    b.HasOne("Domain.Entities.Repartidor", null)
+                        .WithOne()
+                        .HasForeignKey("Domain.Entities.Usuario", "RepartidorId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Domain.Entities.Ruta", b =>

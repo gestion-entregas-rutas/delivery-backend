@@ -18,5 +18,5 @@ public static class PedidoMapeos
         pedido.Estado, 
         pedido.RutaId, 
         pedido.RegistradoEn, 
-        pedido.EntregadoEn);
+        pedido.EntregadoEn, pedido.Detalles.ToDto(), pedido.Version);
 }

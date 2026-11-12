@@ -9,6 +9,15 @@ namespace Api.Controllers;
 [Produces("application/json")]
 public sealed class PedidosController(IPedidoService pedidos) : ControllerBase
 {
+    /// <summary>Reemplaza los datos de un pedido pendiente y comprueba su versión. Solo administradores.</summary>
+    [HttpPut("{id:guid}")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Administrador")]
+    [ProducesResponseType<PedidoDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<PedidoDto>> Actualizar(Guid id, ActualizarPedidoRequest request, CancellationToken ct) =>
+        await pedidos.ActualizarAsync(id, request, ct);
+
     /// <summary>Registra un pedido. Si es para hoy se intenta asignar a una ruta de inmediato.</summary>
     [HttpPost]
     [ProducesResponseType<RegistroPedidoDto>(StatusCodes.Status201Created)]

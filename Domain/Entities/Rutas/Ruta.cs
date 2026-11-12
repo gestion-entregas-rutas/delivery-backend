@@ -30,7 +30,8 @@ public class Ruta : Entity
 
     public int PosicionMinimaInsercion =>
         Estado == EstadoRuta.EnCurso
-            ? _paradas.Count(p => p.Pedido.Estado is EstadoPedido.EnCamino or EstadoPedido.Entregado)
+            ? _paradas.Where(p => p.Pedido.Estado is EstadoPedido.EnCamino or EstadoPedido.Entregado)
+                .Select(p => p.Orden).DefaultIfEmpty(0).Max()
             : 0;
 
     public static Ruta Crear(Zona zona, Repartidor repartidor, DateOnly fecha, DateTimeOffset ahora)
@@ -137,6 +138,35 @@ public class Ruta : Entity
     {
         if (Estado != EstadoRuta.EnCurso)
             throw new DomainException($"La ruta debe estar en curso (estado actual: '{Estado}').");
+    }
+
+    public void ReordenarParadas(IReadOnlyList<Guid> pedidos)
+    {
+        if (!AceptaCambios) throw new DomainException("Solo se reordenan rutas planificadas o en curso.");
+        if (pedidos is null || pedidos.Count != _paradas.Count || pedidos.Distinct().Count() != pedidos.Count ||
+            pedidos.Any(id => !_paradas.Any(p => p.PedidoId == id)))
+            throw new DomainException("Debe indicar todos los pedidos exactamente una vez.");
+        Ordenar();
+        // Mantener intacto el prefijo hasta la última parada en camino o entregada.
+        for (var i = 0; i < PosicionMinimaInsercion; i++)
+            if (pedidos[i] != _paradas[i].PedidoId) throw new DomainException("No se puede alterar el tramo ya iniciado.");
+        var porId = _paradas.ToDictionary(p => p.PedidoId);
+        _paradas.Clear(); _paradas.AddRange(pedidos.Select(id => porId[id])); Reordenar();
+    }
+
+    public void TransferirPedidoA(Ruta destino, Guid pedidoId, int? posicion)
+    {
+        if (destino.Id == Id) throw new DomainException("Para la misma ruta use reordenamiento.");
+        var pedido = BuscarParada(pedidoId).Pedido;
+        // Validar todo antes de modificar cualquiera de los agregados.
+        if (!AceptaCambios || !destino.AceptaCambios || pedido.Estado != EstadoPedido.AsignadoARuta)
+            throw new DomainException("Solo se transfieren pedidos asignados en rutas planificadas o en curso.");
+        if (Fecha != destino.Fecha || ZonaId != destino.ZonaId || !destino.TieneEspacio)
+            throw new DomainException("Las rutas deben compartir fecha y zona y el destino debe tener capacidad.");
+        var indice = posicion ?? destino._paradas.Count;
+        if (indice < destino.PosicionMinimaInsercion || indice > destino._paradas.Count)
+            throw new DomainException("Posición de destino inválida.");
+        QuitarPedido(pedidoId); destino.AgregarPedido(pedido, posicion);
     }
 
     private ParadaRuta BuscarParada(Guid pedidoId) =>

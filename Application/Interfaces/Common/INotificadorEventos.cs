@@ -7,4 +7,6 @@ public interface INotificadorEventos
 {
     Task PedidoActualizadoAsync(PedidoDto pedido, CancellationToken ct = default);
     Task RutaActualizadaAsync(RutaDto ruta, CancellationToken ct = default);
+    Task PedidoReprogramadoAsync(PedidoDto pedido, DateOnly fechaAnterior, CancellationToken ct = default);
+    Task UbicacionActualizadaAsync(UbicacionRepartidorDto ubicacion, DateOnly fecha, CancellationToken ct = default);
 }

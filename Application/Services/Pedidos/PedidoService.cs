@@ -14,6 +14,7 @@ namespace Application.Services;
 public sealed class PedidoService(
     IAppDbContext db,
     IValidator<RegistrarPedidoRequest> validador,
+    IValidator<ActualizarPedidoRequest> validadorEdicion,
     IAsignadorUltimoMomento asignador,
     INotificadorEventos notificador,
     TimeProvider reloj) : IPedidoService
@@ -28,7 +29,7 @@ public sealed class PedidoService(
 
         var pedido = Pedido.Registrar(
             request.ClienteNombre, request.ClienteTelefono, request.Direccion, ubicacion, zona,
-            request.FechaEntrega, request.HoraEntrega, hoy, reloj.GetUtcNow());
+            request.FechaEntrega, request.HoraEntrega, hoy, reloj.GetUtcNow(), request.Detalles.ToDomain());
 
         db.Pedidos.Add(pedido);
         await db.GuardarAsync(ct);
@@ -63,16 +64,15 @@ public sealed class PedidoService(
     {
         var pagina = Math.Max(1, filtro.Pagina);
         var tamano = Math.Clamp(filtro.Tamano, 1, 200);
+        var desplazamiento = (long)(pagina - 1) * tamano;
+        if (desplazamiento > int.MaxValue) throw new DomainException("La página solicitada supera el rango permitido.");
 
-        var consulta = db.Pedidos.AsNoTracking().AsQueryable();
-        if (filtro.Fecha is { } fecha) consulta = consulta.Where(p => p.FechaEntrega == fecha);
-        if (filtro.ZonaId is { } zonaId) consulta = consulta.Where(p => p.ZonaId == zonaId);
-        if (filtro.Estado is { } estado) consulta = consulta.Where(p => p.Estado == estado);
+        var consulta = db.Pedidos.AsNoTracking().Filtrar(filtro);
 
         var total = await consulta.CountAsync(ct);
         var items = await consulta
             .OrderBy(p => p.FechaEntrega).ThenBy(p => p.HoraEntrega).ThenBy(p => p.Id)
-            .Skip((pagina - 1) * tamano).Take(tamano)
+            .Skip((int)desplazamiento).Take(tamano)
             .ToListAsync(ct);
 
         return new PaginaDto<PedidoDto>(items.Select(p => p.ToDto()).ToList(), total, pagina, tamano);
@@ -100,5 +100,22 @@ public sealed class PedidoService(
         var zonas = await db.Zonas.Where(z => z.Activa).ToListAsync(ct);
         return zonas.FirstOrDefault(z => z.Contiene(ubicacion))
                ?? throw new DomainException("La dirección no pertenece a ninguna zona de reparto activa.");
+    }
+
+    public async Task<PedidoDto> ActualizarAsync(Guid id, ActualizarPedidoRequest r, CancellationToken ct = default)
+    {
+        await validadorEdicion.ValidateAndThrowAsync(r, ct);
+        var pedido = await db.Pedidos.FirstOrDefaultAsync(p => p.Id == id, ct)
+            ?? throw new NoEncontradoException(nameof(Pedido), id);
+        if (pedido.Version != r.Version) throw new ConflictoException("El pedido cambió. Recargue antes de editar.");
+        var punto = new GeoPoint(r.Latitud, r.Longitud);
+        var zona = await ResolverZonaAsync(r.ZonaId, punto, ct);
+        var anterior = pedido.FechaEntrega;
+        pedido.Actualizar(r.ClienteNombre, r.ClienteTelefono, r.Direccion, punto, zona,
+            r.FechaEntrega, r.HoraEntrega, reloj.Hoy(), r.Detalles.ToDomain());
+        await db.GuardarAsync(ct);
+        var dto = pedido.ToDto();
+        await notificador.PedidoReprogramadoAsync(dto, anterior, ct);
+        return dto;
     }
 }

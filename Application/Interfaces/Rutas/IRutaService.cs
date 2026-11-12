@@ -14,4 +14,6 @@ public interface IRutaService
     Task<RutaDto> QuitarPedidoAsync(Guid rutaId, Guid pedidoId, CancellationToken ct = default);
     Task<RutaDto> IniciarAsync(Guid rutaId, CancellationToken ct = default);
     Task<RutaDto> CancelarAsync(Guid rutaId, CancellationToken ct = default);
+    Task<RutaDto> ReordenarAsync(Guid rutaId, ReordenarParadasRequest request, CancellationToken ct);
+    Task<TransferenciaPedidoDto> TransferirAsync(Guid rutaId, Guid pedidoId, TransferirPedidoRequest request, CancellationToken ct);
 }

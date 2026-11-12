@@ -70,6 +70,8 @@ public sealed class RutaService(
         var dtos = creadas.Select(r => r.ToDto()).ToList();
         foreach (var dto in dtos)
             await notificador.RutaActualizadaAsync(dto, ct);
+        foreach (var pedido in creadas.SelectMany(r => r.Paradas).Select(p => p.Pedido))
+            await notificador.PedidoActualizadoAsync(pedido.ToDto(), ct);
 
         return new ArmadoRutasDto(request.Fecha, dtos, sinAsignar);
     }
@@ -95,7 +97,9 @@ public sealed class RutaService(
                      ?? throw new NoEncontradoException(nameof(Pedido), pedidoId);
 
         ruta.AgregarPedido(pedido, posicion);
-        return await GuardarYNotificarAsync(ruta, ct);
+        var dto = await GuardarYNotificarAsync(ruta, ct);
+        await notificador.PedidoActualizadoAsync(pedido.ToDto(), ct);
+        return dto;
     }
 
     public async Task<RutaDto> QuitarPedidoAsync(Guid rutaId, Guid pedidoId, CancellationToken ct = default)
@@ -136,6 +140,32 @@ public sealed class RutaService(
     private async Task<Ruta> CargarAsync(Guid id, CancellationToken ct) =>
         await db.Rutas.ConParadas().FirstOrDefaultAsync(r => r.Id == id, ct)
         ?? throw new NoEncontradoException(nameof(Ruta), id);
+
+    public async Task<RutaDto> ReordenarAsync(Guid rutaId, ReordenarParadasRequest r, CancellationToken ct)
+    {
+        var ruta = await CargarAsync(rutaId, ct);
+        if (ruta.Version != r.Version) throw new ConflictoException("La ruta cambió. Recargue antes de reordenar.");
+        ruta.ReordenarParadas(r.PedidosEnOrden);
+        return await GuardarYNotificarAsync(ruta, ct);
+    }
+
+    public async Task<TransferenciaPedidoDto> TransferirAsync(Guid rutaId, Guid pedidoId, TransferirPedidoRequest r, CancellationToken ct)
+    {
+        var origen = await CargarAsync(rutaId, ct);
+        var destino = await CargarAsync(r.DestinoRutaId, ct);
+        if (origen.Version != r.VersionOrigen || destino.Version != r.VersionDestino)
+            throw new ConflictoException("Una ruta cambió. Recargue ambas antes de transferir.");
+        var pedido = origen.Paradas.FirstOrDefault(p => p.PedidoId == pedidoId)?.Pedido
+            ?? throw new NoEncontradoException("Pedido en ruta", pedidoId);
+        origen.TransferirPedidoA(destino, pedidoId, r.Posicion);
+        // Un solo SaveChanges: EF Core usa una transacción para las dos rutas y sus paradas.
+        await db.GuardarAsync(ct);
+        var salida = new TransferenciaPedidoDto(origen.ToDto(), destino.ToDto());
+        await notificador.RutaActualizadaAsync(salida.Origen, ct);
+        await notificador.RutaActualizadaAsync(salida.Destino, ct);
+        await notificador.PedidoActualizadoAsync(pedido.ToDto(), ct);
+        return salida;
+    }
 
     private async Task<RutaDto> GuardarYNotificarAsync(Ruta ruta, CancellationToken ct)
     {

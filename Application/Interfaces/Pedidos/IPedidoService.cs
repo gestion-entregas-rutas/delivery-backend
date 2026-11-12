@@ -9,4 +9,5 @@ public interface IPedidoService
     Task<PedidoDto> ObtenerAsync(Guid id, CancellationToken ct = default);
     Task<PaginaDto<PedidoDto>> ListarAsync(FiltroPedidos filtro, CancellationToken ct = default);
     Task<PedidoDto> CancelarAsync(Guid id, CancellationToken ct = default);
+    Task<PedidoDto> ActualizarAsync(Guid id, ActualizarPedidoRequest request, CancellationToken ct = default);
 }

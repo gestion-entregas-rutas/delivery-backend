@@ -14,4 +14,10 @@ public sealed record PedidoDto(
     EstadoPedido Estado,
     Guid? RutaId,
     DateTimeOffset RegistradoEn,
-    DateTimeOffset? EntregadoEn);
+    DateTimeOffset? EntregadoEn,
+    DetallesPedidoDto? Detalles = null,
+    uint Version = 0)
+{
+    public string DestinatarioNombre => ClienteNombre;
+    public string DestinatarioTelefono => ClienteTelefono;
+}

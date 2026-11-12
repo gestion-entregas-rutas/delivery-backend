@@ -8,6 +8,8 @@ namespace Infrastructure.Data;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options), IAppDbContext
 {
+    public DbSet<Usuario> Usuarios => Set<Usuario>();
+    public DbSet<UltimaUbicacionRepartidor> Ubicaciones => Set<UltimaUbicacionRepartidor>();
     public DbSet<Pedido> Pedidos => Set<Pedido>();
     public DbSet<Zona> Zonas => Set<Zona>();
     public DbSet<Repartidor> Repartidores => Set<Repartidor>();
@@ -34,6 +36,27 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     /// </summary>
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        // Las paradas pertenecen al agregado Ruta. Cambiarlas debe comprobar y renovar
+        // tambien su xmin, aunque ninguna propiedad escalar de la ruta haya cambiado.
+        // De lo contrario dos pedidos distintos pueden ocupar el ultimo cupo a la vez.
+        ChangeTracker.DetectChanges();
+        var rutasModificadas = ChangeTracker.Entries<ParadaRuta>()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Select(e => e.Entity.RutaId)
+            .ToHashSet();
+        // Dos entregas concurrentes tambien deben serializarse sobre la ruta;
+        // asi la ultima entrega puede reconocer que debe completar la salida.
+        rutasModificadas.UnionWith(ChangeTracker.Entries<Pedido>()
+            .Where(e => e.State == EntityState.Modified && e.Entity.RutaId.HasValue)
+            .Select(e => e.Entity.RutaId!.Value));
+        foreach (var ruta in ChangeTracker.Entries<Ruta>()
+                     .Where(e => rutasModificadas.Contains(e.Entity.Id) &&
+                                 e.State is EntityState.Unchanged or EntityState.Modified))
+        {
+            // Escribir el mismo valor fuerza UPDATE ... WHERE xmin = version original.
+            ruta.Property(r => r.Capacidad).IsModified = true;
+        }
+
         try
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);

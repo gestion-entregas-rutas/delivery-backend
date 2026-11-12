@@ -9,4 +9,5 @@ public sealed record RegistrarPedidoRequest(
     double Longitud,
     DateOnly FechaEntrega,
     TimeOnly HoraEntrega,
-    Guid? ZonaId = null);
+    Guid? ZonaId = null,
+    DetallesPedidoRequest? Detalles = null);

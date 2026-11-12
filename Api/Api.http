@@ -1,4 +1,7 @@
 @baseUrl = http://localhost:5289
+# Ajustar fecha a un dia futuro y hoy a la fecha local del backend antes de probar.
+@fecha = 2027-02-14
+@hoy = 2026-10-16
 @zonaId = 00000000-0000-0000-0000-000000000000
 @repartidorId = 00000000-0000-0000-0000-000000000000
 @pedidoId = 00000000-0000-0000-0000-000000000000
@@ -61,7 +64,7 @@ Content-Type: application/json
 { "disponible": false }
 
 ### Ruta activa del repartidor en una fecha
-GET {{baseUrl}}/api/repartidores/{{repartidorId}}/ruta?fecha=2026-10-11
+GET {{baseUrl}}/api/repartidores/{{repartidorId}}/ruta?fecha={{fecha}}
 
 ### ---------- Pedidos ----------
 
@@ -75,7 +78,7 @@ Content-Type: application/json
   "direccion": "Av. Amazonas N24",
   "latitud": -0.18,
   "longitud": -78.48,
-  "fechaEntrega": "2026-10-11",
+  "fechaEntrega": "{{fecha}}",
   "horaEntrega": "14:00:00"
 }
 
@@ -89,7 +92,7 @@ Content-Type: application/json
   "direccion": "Calle Quito 123",
   "latitud": -0.181,
   "longitud": -78.481,
-  "fechaEntrega": "2026-10-10",
+  "fechaEntrega": "{{hoy}}",
   "horaEntrega": "18:00:00"
 }
 
@@ -103,7 +106,7 @@ Content-Type: application/json
   "direccion": "Lejos",
   "latitud": 10,
   "longitud": 10,
-  "fechaEntrega": "2026-10-11",
+  "fechaEntrega": "{{fecha}}",
   "horaEntrega": "10:00:00"
 }
 
@@ -117,12 +120,12 @@ Content-Type: application/json
   "direccion": "",
   "latitud": 0,
   "longitud": 0,
-  "fechaEntrega": "2026-10-11",
+  "fechaEntrega": "{{fecha}}",
   "horaEntrega": "10:00:00"
 }
 
 ### Listar pedidos pendientes de una fecha (paginado)
-GET {{baseUrl}}/api/pedidos?fecha=2026-10-11&estado=Pendiente&pagina=1&tamano=50
+GET {{baseUrl}}/api/pedidos?fecha={{fecha}}&estado=Pendiente&pagina=1&tamano=50
 
 ### Obtener pedido
 GET {{baseUrl}}/api/pedidos/{{pedidoId}}
@@ -136,16 +139,16 @@ POST {{baseUrl}}/api/pedidos/{{pedidoId}}/cancelar
 POST {{baseUrl}}/api/rutas/armar
 Content-Type: application/json
 
-{ "fecha": "2026-10-11" }
+{ "fecha": "{{fecha}}" }
 
 ### Armar rutas de una sola zona
 POST {{baseUrl}}/api/rutas/armar
 Content-Type: application/json
 
-{ "fecha": "2026-10-11", "zonaId": "{{zonaId}}" }
+{ "fecha": "{{fecha}}", "zonaId": "{{zonaId}}" }
 
 ### Listar rutas de una fecha
-GET {{baseUrl}}/api/rutas?fecha=2026-10-11
+GET {{baseUrl}}/api/rutas?fecha={{fecha}}
 
 ### Obtener ruta con sus paradas
 GET {{baseUrl}}/api/rutas/{{rutaId}}

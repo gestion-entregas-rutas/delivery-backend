@@ -127,6 +127,23 @@ public class RutaTests
     }
 
     [Fact]
+    public void RutaEnCurso_ParadaAvanzadaFueraDeOrden_ProtegeTodoElTramoAnterior()
+    {
+        var (zona, rep, ruta) = Escenario();
+        var primero = DomainFixtures.CrearPedido(zona);
+        var segundo = DomainFixtures.CrearPedido(zona);
+        ruta.AgregarPedido(primero);
+        ruta.AgregarPedido(segundo);
+        ruta.Iniciar(rep, DomainFixtures.Ahora);
+        ruta.MarcarEnCamino(segundo.Id);
+
+        Assert.Equal(2, ruta.PosicionMinimaInsercion);
+        Assert.Throws<DomainException>(() =>
+            ruta.AgregarPedido(DomainFixtures.CrearPedido(zona), posicion: 1));
+        ruta.AgregarPedido(DomainFixtures.CrearPedido(zona), posicion: 2);
+    }
+
+    [Fact]
     public void Cancelar_DevuelveLosPedidosAPendientes()
     {
         var (zona, _, ruta) = Escenario();

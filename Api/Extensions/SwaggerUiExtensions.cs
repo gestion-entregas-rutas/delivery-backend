@@ -37,7 +37,7 @@ public static class SwaggerUiExtensions
             </html>
             """;
 
-        app.MapGet(ruta, () => Results.Content(html, "text/html; charset=utf-8")).ExcludeFromDescription();
+        app.MapGet(ruta, () => Results.Content(html, "text/html; charset=utf-8")).AllowAnonymous().ExcludeFromDescription();
         return app;
     }
 }

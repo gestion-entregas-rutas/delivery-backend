@@ -13,7 +13,10 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly, includeInternalTypes: true);
         services.TryAddSingleton(TimeProvider.System);
 
+        services.AddScoped<IUsuarioService, UsuarioService>();
         services.AddScoped<IPedidoService, PedidoService>();
+        services.AddScoped<IUbicacionService, UbicacionService>();
+        services.AddScoped<IResumenService, ResumenService>();
         services.AddScoped<IZonaService, ZonaService>();
         services.AddScoped<IRepartidorService, RepartidorService>();
         services.AddScoped<IRutaService, RutaService>();

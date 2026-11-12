@@ -9,4 +9,5 @@ public sealed record RutaDto(
     Guid RepartidorId,
     int Capacidad,
     EstadoRuta Estado,
-    IReadOnlyList<ParadaDto> Paradas);
+    IReadOnlyList<ParadaDto> Paradas,
+    uint Version = 0);

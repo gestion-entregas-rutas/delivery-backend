@@ -7,4 +7,7 @@ public sealed record FiltroPedidos(
     Guid? ZonaId = null,
     EstadoPedido? Estado = null,
     int Pagina = 1,
-    int Tamano = 50);
+    int Tamano = 50,
+    DateOnly? Desde = null,
+    DateOnly? Hasta = null,
+    string? Buscar = null);

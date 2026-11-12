@@ -13,6 +13,7 @@ public sealed class SeguimientoHub : Hub
     {
         public const string PedidoActualizado = "PedidoActualizado";
         public const string RutaActualizada = "RutaActualizada";
+        public const string UbicacionRepartidorActualizada = "UbicacionRepartidorActualizada";
     }
 
     public static class Grupos

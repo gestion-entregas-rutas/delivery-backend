@@ -5,6 +5,8 @@ namespace Application.Interfaces;
 
 public interface IAppDbContext
 {
+    DbSet<Usuario> Usuarios { get; }
+    DbSet<UltimaUbicacionRepartidor> Ubicaciones { get; }
     DbSet<Pedido> Pedidos { get; }
     DbSet<Zona> Zonas { get; }
     DbSet<Repartidor> Repartidores { get; }

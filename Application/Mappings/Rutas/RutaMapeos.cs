@@ -13,5 +13,5 @@ public static class RutaMapeos
         ruta.RepartidorId, 
         ruta.Capacidad, 
         ruta.Estado,
-        ruta.Paradas.Select(p => new ParadaDto(p.Orden, p.Pedido.ToDto())).ToList());
+        ruta.Paradas.Select(p => new ParadaDto(p.Orden, p.Pedido.ToDto())).ToList(), ruta.Version);
 }

@@ -20,6 +20,7 @@ public static class DependencyInjection
         var segundos = int.TryParse(config["Planificador:SegundosLimite"], out var s) && s > 0 ? s : 2;
         services.AddSingleton<IPlanificadorRutas>(new PlanificadorRutasOrTools(segundos));
 
+        services.AddSingleton<IProtectorClaves, ProtectorClaves>();
         services.TryAddSingleton<INotificadorEventos, NotificadorNulo>();
 
         return services;

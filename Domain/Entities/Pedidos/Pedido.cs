@@ -23,6 +23,7 @@ public class Pedido : Entity
 
     public EstadoPedido Estado { get; private set; }
     public Guid? RutaId { get; private set; }
+    public InformacionPedido? Detalles { get; private set; }
 
     public bool EsDeUltimoMomento(DateOnly hoy) => FechaEntrega == hoy;
 
@@ -35,7 +36,8 @@ public class Pedido : Entity
         DateOnly fechaEntrega,
         TimeOnly horaEntrega,
         DateOnly hoy,
-        DateTimeOffset ahora)
+        DateTimeOffset ahora,
+        InformacionPedido? detalles = null)
     {
         if (string.IsNullOrWhiteSpace(clienteNombre))
             throw new DomainException("El pedido debe indicar el nombre del cliente.");
@@ -60,7 +62,8 @@ public class Pedido : Entity
             FechaEntrega = fechaEntrega,
             HoraEntrega = horaEntrega,
             RegistradoEn = ahora,
-            Estado = EstadoPedido.Pendiente
+            Estado = EstadoPedido.Pendiente,
+            Detalles = detalles
         };
     }
 
@@ -71,6 +74,17 @@ public class Pedido : Entity
 
         RutaId = rutaId;
         Estado = EstadoPedido.AsignadoARuta;
+    }
+
+    public void Actualizar(string nombre, string telefono, string direccion, GeoPoint ubicacion,
+        Zona zona, DateOnly fecha, TimeOnly hora, DateOnly hoy, InformacionPedido? detalles)
+    {
+        if (Estado != EstadoPedido.Pendiente)
+            throw new DomainException("Solo se puede editar un pedido pendiente. Retírelo de la ruta antes de editarlo.");
+        var datos = Registrar(nombre, telefono, direccion, ubicacion, zona, fecha, hora, hoy, RegistradoEn, detalles);
+        ClienteNombre = datos.ClienteNombre; ClienteTelefono = datos.ClienteTelefono;
+        Direccion = datos.Direccion; Ubicacion = datos.Ubicacion; ZonaId = datos.ZonaId;
+        FechaEntrega = fecha; HoraEntrega = hora; Detalles = detalles;
     }
 
     public void Desasignar()
