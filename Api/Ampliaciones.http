@@ -1,0 +1,74 @@
+@baseUrl = http://localhost:5289
+@tokenAdmin = PEGAR_TOKEN_ADMINISTRADOR
+@tokenConductor = PEGAR_TOKEN_CONDUCTOR
+@pedidoId = 00000000-0000-0000-0000-000000000001
+@rutaId = 00000000-0000-0000-0000-000000000002
+@destinoRutaId = 00000000-0000-0000-0000-000000000003
+@repartidorId = 00000000-0000-0000-0000-000000000004
+@fecha = 2026-12-20
+@versionPedido = 123
+@versionRuta = 124
+@versionDestino = 125
+
+### Registro ampliado (mantiene el contrato antiguo)
+POST {{baseUrl}}/api/pedidos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"clienteNombre":"Destinatario","clienteTelefono":"0991111111","direccion":"Calle 1","latitud":-0.18,"longitud":-78.48,"fechaEntrega":"{{fecha}}","horaEntrega":"14:00:00","detalles":{"remitenteNombre":"Remitente","remitenteTelefono":"0992222222","remitenteCorreo":"origen@example.com","destinatarioCorreo":"destino@example.com","observaciones":"Entregar en recepción","tipoCarga":"General","pesoKg":2.5,"fragil":true,"prioridad":"Alta"}}
+
+### Consultar versión actual
+GET {{baseUrl}}/api/pedidos/{{pedidoId}}
+Authorization: Bearer {{tokenAdmin}}
+
+### Editar un pendiente; la versión se obtiene de la consulta anterior
+PUT {{baseUrl}}/api/pedidos/{{pedidoId}}
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"clienteNombre":"Destinatario editado","clienteTelefono":"0991111111","direccion":"Calle 2","latitud":-0.18,"longitud":-78.48,"fechaEntrega":"{{fecha}}","horaEntrega":"15:00:00","version":{{versionPedido}},"detalles":{"observaciones":"Nueva indicación"}}
+
+### Búsqueda y rango inclusivo
+GET {{baseUrl}}/api/pedidos?desde={{fecha}}&hasta={{fecha}}&buscar=Destinatario&pagina=1&tamano=10
+Authorization: Bearer {{tokenAdmin}}
+
+### Resumen de toda la población filtrada
+GET {{baseUrl}}/api/resumen/pedidos?fecha={{fecha}}
+Authorization: Bearer {{tokenAdmin}}
+
+### GPS del conductor: usar una hora de captura real y reciente
+POST {{baseUrl}}/api/repartidores/me/ubicacion
+Authorization: Bearer {{tokenConductor}}
+Content-Type: application/json
+
+{"rutaId":"{{rutaId}}","latitud":-0.18,"longitud":-78.48,"precisionMetros":12,"capturadaEn":"{{$datetime iso8601}}"}
+
+### Última posición conocida
+GET {{baseUrl}}/api/repartidores/{{repartidorId}}/ubicacion
+Authorization: Bearer {{tokenAdmin}}
+
+### Posiciones iniciales para el mapa
+GET {{baseUrl}}/api/seguimiento/ubicaciones?fecha={{fecha}}
+Authorization: Bearer {{tokenAdmin}}
+
+### Transferencia atómica; requiere versiones actuales de ambas rutas
+POST {{baseUrl}}/api/rutas/{{rutaId}}/pedidos/{{pedidoId}}/transferir
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"destinoRutaId":"{{destinoRutaId}}","versionOrigen":{{versionRuta}},"versionDestino":{{versionDestino}},"posicion":0}
+
+### Reordenamiento: reemplazar por la lista COMPLETA de pedidos de la ruta
+PUT {{baseUrl}}/api/rutas/{{rutaId}}/paradas/orden
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{"pedidosEnOrden":["{{pedidoId}}"],"version":{{versionRuta}}}
+
+### Error: fecha exacta y rango no se combinan (422 con traceId)
+GET {{baseUrl}}/api/resumen/pedidos?fecha={{fecha}}&desde={{fecha}}
+Authorization: Bearer {{tokenAdmin}}
+
+### Error: un conductor no puede consultar indicadores globales (403)
+GET {{baseUrl}}/api/resumen/pedidos?fecha={{fecha}}
+Authorization: Bearer {{tokenConductor}}
