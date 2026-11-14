@@ -1,0 +1,155 @@
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset='utf-8'>
+<title>Ejecución de Pruebas - Backend delivery</title>
+<style>
+body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
+h1 { font-size: 18pt; } h2 { font-size: 14pt; margin-top: 18pt; } h3 { font-size: 12pt; margin-top: 12pt; }
+table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
+th, td { border: 1px solid #444; padding: 5pt; vertical-align: top; }
+th { background: #f2f2f2; }
+.small { font-size: 9pt; color: #333; }
+.ok { color: #0a6b2b; font-weight: bold; }
+.skip { color: #8a5a00; font-weight: bold; }
+.fail { color: #a40000; font-weight: bold; }
+pre { white-space: pre-wrap; font-family: Consolas, monospace; font-size: 9pt; background:#fafafa; border:1px solid #ddd; padding:6pt; }
+</style>
+</head>
+<body>
+<h1>Ejecución de Pruebas del Backend (delivery-backend)</h1>
+<p><b>Proyecto:</b> delivery (C#/.NET 10, ASP.NET Core, PostgreSQL/PostGIS, EF Core, SignalR)<br/>
+<b>Fecha de ejecución:</b> 14/11/2026<br/>
+<b>Entorno:</b> Windows, base local PostgreSQL disponible para desarrollo; variable <code>DELIVERY_TEST_CONNECTION</code> no configurada en esta ejecución (pruebas PG marcadas <code>[PostgresFact]</code> omitidas).<br/>
+<b>Documento base de planificación:</b> <code>PLANIFICACION_PRUEBAS_BACKEND.md</code></p>
+
+<h2>1. Contexto de la parte probada</h2>
+<p>Se ejecuta la planificación sobre el backend que integra la operación logística de última milla con el módulo E-Commerce, preservando los contratos existentes (Pedidos, Rutas, Zonas, Repartidores, Seguimiento/Ubicaciones, Resumen y eventos SignalR en <code>/hubs/seguimiento</code>). La validación se centra especialmente en los <b>algoritmos propios en C#</b> (sin librerías/APIs externas): <b>Ray Casting</b> para cobertura punto-en-zona, <b>Haversine</b> para distancias y <b>planificador CVRP propio</b> para armado/optimización de rutas con capacidad y ventanas de tiempo (<code>HoraEntrega</code>), además de concurrencia de catálogo/stock, checkout/pago simulado (reserva-confirmación-cancelación/expiración, idempotencia), puente e-commerce→logística y regresión.</p>
+
+<h2>2. Preparación del entorno (ejecutada)</h2>
+<table>
+<tr><th>Elemento</th><th>Estado/Detalle</th></tr>
+<tr><td>Compilación solución</td><td><code>dotnet build delivery.slnx</code> → <b>Correcta</b> (0 errores, 0 advertencias).</td></tr>
+<tr><td>Base de datos</td><td>PostgreSQL/PostGIS local disponible para desarrollo; migraciones e-commerce aplicadas en entorno de trabajo previo.</td></tr>
+<tr><td>Pruebas PostgreSQL temporales</td><td><code>DELIVERY_TEST_CONNECTION</code> no definida en esta sesión: las pruebas <code>[PostgresFact]</code> se omiten por diseño (crean/eliminan BD temporales <code>delivery_test_*</code> cuando está configurada).</td></tr>
+<tr><td>Datos/volumen dev</td><td>Seed de catálogo en desarrollo (28 categorías, 40+ productos) y endpoint dev <code>POST /api/testing/poblar-escenario-alto-volumen</code> implementado.</td></tr>
+</table>
+
+<h2>3. Resumen de ejecución automatizada</h2>
+<table>
+<tr><th>Suite / Comando</th><th>Total</th><th>Superadas</th><th>Omitidas</th><th>Fallidas</th><th>Resultado</th><th>Evidencia</th></tr>
+<tr><td><code>dotnet build delivery.slnx</code></td><td>-</td><td>-</td><td>-</td><td>0</td><td class='ok'>EXITOSO</td><td>Compilación correcta (0 errores)</td></tr>
+<tr><td><code>dotnet test UnitTests/UnitTests.csproj</code></td><td>54</td><td>54</td><td>0</td><td>0</td><td class='ok'>EXITOSO</td><td>Correctas: 54, Omitido: 0, Fallidas: 0, Duración ~2 s</td></tr>
+<tr><td><code>dotnet test IntegrationTests/IntegrationTests.csproj</code></td><td>18</td><td>15</td><td>3</td><td>0</td><td class='ok'>EXITOSO (con omisiones PG)</td><td>Correctas: 15, Omitido: 3, Fallidas: 0, Duración ~18 s</td></tr>
+</table>
+
+<p><b>Pruebas omitidas (requieren <code>DELIVERY_TEST_CONNECTION</code>):</b></p>
+<ul>
+<li><code>IntegrationTests.PostgreSQL.Etapa6PostgresTests.ConcurrenciaProductoYStock_CumpleEscenariosABCD</code> (escenarios A–D)</li>
+<li><code>IntegrationTests.PostgreSQL.Etapa6PostgresTests.FlujosCheckout_CarritoMerge_RetiroDomicilio_BorradoLogico_Idempotencia</code></li>
+<li><code>IntegrationTests.PostgreSQL.AmpliacionesPostgresTests.TransferenciaAtomica_EdicionConXmin_YFiltrosGeograficos_FuncionanEnPostgres</code></li>
+</ul>
+
+<h2>4. Matriz de ejecución (foco en algoritmos)</h2>
+<table>
+<tr><th>ID</th><th>Requisito</th><th>Tipo</th><th>Precondiciones</th><th>Datos/Entrada</th><th>Pasos</th><th>Resultado esperado</th><th>Resultado obtenido</th><th>Criterio aceptación</th><th>Estado</th><th>Evidencia</th></tr>
+<tr>
+<td>ALG-RC-01</td><td>RQ-ALG-01 Ray casting (interior)</td><td>Unitaria</td><td>Zona cuadrada definida</td><td>Puntos interiores (centro y desplazado)</td><td>Invocar <code>Zona.Contiene(punto)</code></td><td>Retorna <code>true</code></td><td>Retorna <code>true</code> para puntos internos</td><td>Punto interno clasificado como contenido</td><td class='ok'>APROBADO</td><td><code>UnitTests.Domain.ZonaRayCastingTests.Contiene_PuntoDentro_RetornaTrue</code> (pass)</td>
+</tr>
+<tr>
+<td>ALG-RC-02</td><td>RQ-ALG-01 Ray casting (exterior)</td><td>Unitaria</td><td>Zona cuadrada definida</td><td>Puntos exteriores</td><td>Invocar <code>Zona.Contiene(punto)</code></td><td>Retorna <code>false</code></td><td>Retorna <code>false</code> para puntos externos</td><td>Punto externo no contenido</td><td class='ok'>APROBADO</td><td><code>ZonaRayCastingTests.Contiene_PuntoFuera_RetornaFalse</code> (pass)</td>
+</tr>
+<tr>
+<td>ALG-RC-03</td><td>RQ-ALG-01 Ray casting (cóncavo)</td><td>Unitaria</td><td>Polígono cóncavo (forma “L”)</td><td>Puntos en base/brazo interno, en hueco cóncavo y fuera</td><td>Invocar <code>Contiene</code> por punto</td><td>Internos <code>true</code>, hueco/fuera <code>false</code></td><td>Clasificación correcta en concavidad</td><td>Ray casting correcto en caso crítico</td><td class='ok'>APROBADO</td><td><code>ZonaRayCastingTests.Contiene_PoligonoConcavo_RayCastingCorrecto</code> (pass)</td>
+</tr>
+<tr>
+<td>ALG-RC-04</td><td>RQ-ALG-01 Borde/vértice</td><td>Unitaria (borde)</td><td>Polígono válido</td><td>Punto en vértice/arista</td><td>Invocar <code>Contiene</code></td><td>Comportamiento determinista y sin excepción</td><td>No ejecutado como caso explícito automatizado en esta corrida</td><td>Determinismo documentado</td><td class='skip'>PENDIENTE (borde explícito)</td><td>Cubierto parcialmente por semántica de implementación; recomendado agregar caso dedicado</td>
+</tr>
+<tr>
+<td>ALG-RC-05</td><td>RQ-ALG-01 Cobertura en checkout domicilio</td><td>Integración/API</td><td>Zonas activas, cliente/producto con stock</td><td>Coordenadas dentro/fuera de zona</td><td><code>POST /api/ordenes/checkout</code> domicilio</td><td>Dentro: 201 (reserva); fuera: 422 sin descuento indebido</td><td>Validación implementada en servicio (ray casting). Prueba funcional API manual no automatizada en esta corrida; PG de flujos omitida.</td><td>Cobertura aplicada en negocio</td><td class='skip'>PENDIENTE EJECUCIÓN FUNCIONAL</td><td>Código: <code>OrdenService</code>/dominio; flujo cubierto en diseño (PG omitida por entorno)</td>
+</tr>
+<tr>
+<td>ALG-HV-01</td><td>RQ-ALG-02 Haversine (identidad)</td><td>Unitaria</td><td>Coordenadas válidas</td><td>Mismo punto (A,A)</td><td>Calcular <code>DistanciaKm</code></td><td>≈ 0 km</td><td>No existe prueba unitaria dedicada aislada en suite actual; función usada por CVRP propio validado</td><td>Resultado ≈ 0</td><td class='skip'>PENDIENTE (caso dedicado)</td><td>Uso indirecto en <code>PlanificadorRutasPropio</code> (pruebas CVRP aprobadas)</td>
+</tr>
+<tr>
+<td>ALG-HV-02</td><td>RQ-ALG-02 Haversine (par conocido)</td><td>Unitaria</td><td>Coordenadas válidas</td><td>Par con distancia de referencia</td><td>Calcular distancia</td><td>Dentro de tolerancia</td><td>No ejecutado como caso dedicado en esta corrida</td><td>Error aceptable</td><td class='skip'>PENDIENTE (caso dedicado)</td><td>Recomendado agregar prueba con tolerancia</td>
+</tr>
+<tr>
+<td>ALG-CV-01</td><td>RQ-ALG-03 CVRP unicidad y capacidad</td><td>Unitaria</td><td>Zona, 10 pedidos, 3 repartidores cap. suficiente</td><td>Pedidos con ubicación/HoraEntrega</td><td><code>Planificar(zona, pedidos, repartidores)</code></td><td>Cada pedido 1 vez; ninguna ruta excede capacidad</td><td>10 asignados, IDs únicos, todas las rutas dentro de capacidad (≤4)</td><td>0 duplicados/omisiones/sobrecapacidad</td><td class='ok'>APROBADO</td><td><code>UnitTests.Infrastructure.PlanificadorRutasPropioTests.Planificar_AsignaCadaPedidoUnaSolaVezYRespetaLaCapacidad</code> (pass)</td>
+</tr>
+<tr>
+<td>ALG-CV-02</td><td>RQ-ALG-03 Capacidad min(zona,repartidor)</td><td>Unitaria</td><td>Zona cap. 4, repartidores cap. 2</td><td>4 pedidos</td><td>Planificar</td><td>Ninguna ruta &gt; 2; todos asignados</td><td>Todas las rutas ≤ 2 y total asignado 4</td><td>Respeta mínimo zona/repartidor</td><td class='ok'>APROBADO</td><td><code>PlanificadorRutasPropioTests.Planificar_UsaLaCapacidadMinimaEntreZonaYRepartidor</code> (pass)</td>
+</tr>
+<tr>
+<td>ALG-CV-03</td><td>RQ-ALG-03 Ventanas de tiempo (HoraEntrega)</td><td>Unitaria</td><td>Pedidos con horas 11:00, 09:00, 10:00</td><td>Conjunto desordenado</td><td>Planificar (1 vehículo)</td><td>Orden no decreciente 09:00,10:00,11:00</td><td>Secuencia obtenida en orden cronológico</td><td>Respeta precedencia/ventana por hora</td><td class='ok'>APROBADO</td><td><code>PlanificadorRutasPropioTests.Planificar_RespetaVentanasDeTiempo_HoraEntregaEnOrdenNoDecrecientePorRuta</code> (pass)</td>
+</tr>
+<tr>
+<td>ALG-CV-04</td><td>RQ-ALG-03 Casos límite</td><td>Unitaria</td><td>Zona válida</td><td>Sin pedidos o sin repartidores</td><td>Planificar</td><td>Lista vacía, sin excepción</td><td>Retorna vacío en ambos casos</td><td>Manejo seguro</td><td class='ok'>APROBADO</td><td><code>PlanificadorRutasPropioTests.Planificar_SinPedidosOSinRepartidores_NoCreaRutas</code> (pass)</td>
+</tr>
+<tr>
+<td>ALG-CV-05</td><td>RQ-ALG-03 Alto volumen</td><td>Carga/Integración (dev)</td><td>Entorno dev, BD</td><td><code>POST /api/testing/poblar-escenario-alto-volumen</code> (300 pedidos, 20+ repartidores, varias zonas)</td><td>Generar datos y ejecutar armado/planificación por zona</td><td>Asignaciones válidas sin duplicados ni sobrecapacidad</td><td>Endpoint implementado; ejecución de carga funcional no registrada como evidencia en esta corrida automatizada</td><td>Corrección bajo volumen</td><td class='skip'>PENDIENTE EJECUCIÓN FUNCIONAL</td><td>Controlador dev disponible; requiere corrida manual en entorno dev</td>
+</tr>
+<tr>
+<td>ALG-CV-06</td><td>RQ-ALG-03, RQ-LOG-01 Paridad ruteo</td><td>Integración/Regresión</td><td>Planificador propio registrado en DI</td><td>Flujos de armado/rutas existentes</td><td>Ejecutar pruebas de integración y flujos logísticos</td><td>Rutas/estados/eventos coherentes sin OR-Tools</td><td>15 pruebas de integración (no-PG) aprobadas, 0 fallas</td><td>Sin regresión observable</td><td class='ok'>APROBADO (parcial automatizado)</td><td>Suite <code>IntegrationTests</code>: 15 superadas / 0 fallidas</td>
+</tr>
+</table>
+
+<h2>5. Matriz de ejecución (e-commerce, concurrencia y regresión)</h2>
+<table>
+<tr><th>ID</th><th>Requisito</th><th>Tipo</th><th>Escenario</th><th>Resultado esperado</th><th>Resultado obtenido</th><th>Estado</th><th>Evidencia</th></tr>
+<tr>
+<td>CONC-A</td><td>RQ-CAT-02, RQ-CONC-01</td><td>Integración/Concurrencia (PG)</td><td>2 admins editan mismo producto con misma versión</td><td>1 éxito (200) y 1 <code>409 CONFLICTO_VERSION_PRODUCTO</code></td><td>Implementado en prueba automatizada; no ejecutado en esta corrida (sin <code>DELIVERY_TEST_CONNECTION</code>)</td><td class='skip'>OMITIDO (entorno)</td><td><code>Etapa6PostgresTests.ConcurrenciaProductoYStock_CumpleEscenariosABCD</code></td>
+</tr>
+<tr>
+<td>CONC-B</td><td>RQ-ORD-01, RQ-CONC-01</td><td>Integración/Concurrencia (PG)</td><td>Stock 100, dos compras de 50 en paralelo</td><td>Ambas 201, stock final 0</td><td>Implementado; omitido por entorno</td><td class='skip'>OMITIDO (entorno)</td><td>Misma prueba (escenario B)</td>
+</tr>
+<tr>
+<td>CONC-C</td><td>RQ-ORD-01, RQ-CONC-01</td><td>Integración/Concurrencia (PG)</td><td>Stock 50, dos compras de 40 en paralelo</td><td>Una 201, otra <code>409 STOCK_AGOTADO</code>, stock final 10</td><td>Implementado; omitido por entorno</td><td class='skip'>OMITIDO (entorno)</td><td>Misma prueba (escenario C)</td>
+</tr>
+<tr>
+<td>CONC-D</td><td>RQ-CONC-01</td><td>Integración/Concurrencia (PG)</td><td>Compra y edición admin simultáneas</td><td>Sin restaurar stock ni perder descuento de compra exitosa</td><td>Implementado; omitido por entorno</td><td class='skip'>OMITIDO (entorno)</td><td>Misma prueba (escenario D)</td>
+</tr>
+<tr>
+<td>FLU-01</td><td>RQ-CAR-01, RQ-ORD-03/04, RQ-CAT-01</td><td>Integración (PG)</td><td>Carrito invitado→merge, checkout retiro y domicilio (confirmado), idempotencia/confirmación duplicada, borrado lógico, cancelación con liberación de stock</td><td>Estados, stock y vínculo pedido logístico consistentes</td><td>Implementado; omitido por entorno</td><td class='skip'>OMITIDO (entorno)</td><td><code>Etapa6PostgresTests.FlujosCheckout_CarritoMerge_RetiroDomicilio_BorradoLogico_Idempotencia</code></td>
+</tr>
+<tr>
+<td>REG-01</td><td>RQ-LOG-01</td><td>Regresión automatizada</td><td>Flujos logísticos/integración existentes (no dependientes de DELIVERY_TEST_CONNECTION)</td><td>Sin fallos ni ruptura de contrato</td><td>15 pruebas superadas, 0 fallidas</td><td class='ok'>APROBADO</td><td><code>dotnet test IntegrationTests/IntegrationTests.csproj</code></td>
+</tr>
+<tr>
+<td>AUTO-ALG</td><td>RQ-ALG-01, RQ-ALG-03</td><td>Unitarias</td><td>Ray casting y CVRP propio</td><td>Casos definidos en verde</td><td>54/54 pruebas unitarias superadas (incluye 3 de ray casting y 4 de CVRP propio)</td><td class='ok'>APROBADO</td><td><code>dotnet test UnitTests/UnitTests.csproj</code></td>
+</tr>
+</table>
+
+<h2>6. Registro de incidentes (defectos)</h2>
+<p>No se registraron defectos/errores durante la ejecución automatizada realizada en esta sesión (0 pruebas fallidas). Los escenarios marcados como <i>omitidos</i> se deben a ausencia de variable de entorno para BD temporal PostgreSQL, no a fallos funcionales observados.</p>
+<table>
+<tr><th>ID Defecto</th><th>Fecha</th><th>Caso/ID prueba</th><th>Módulo</th><th>Severidad</th><th>Prioridad</th><th>Entorno/Build</th><th>Pasos para reproducir</th><th>Resultado obtenido</th><th>Resultado esperado</th><th>Evidencia</th><th>Estado</th><th>Responsable</th></tr>
+<tr><td colspan='13' align='center'>Sin incidentes registrados en esta ejecución.</td></tr>
+</table>
+
+<h2>7. Verificación de resultados y conclusiones</h2>
+<ul>
+<li><b>Build:</b> exitoso (<code>dotnet build delivery.slnx</code>, 0 errores).</li>
+<li><b>Algoritmos (foco):</b> aprobados los casos unitarios implementados de <b>Ray Casting</b> (interior, exterior, cóncavo) y <b>CVRP propio</b> (unicidad, capacidad mínima zona/repartidor, orden por <code>HoraEntrega</code>, casos límite). Planificador propio integrado en DI y sin dependencia de OR-Tools.</li>
+<li><b>Regresión/integración (sin PG dedicado):</b> 15/15 pruebas aprobadas, sin fallos.</li>
+<li><b>Concurrencia y flujos e-commerce en PostgreSQL (A–D, checkout/carrito/retiro-domicilio/borrado lógico/idempotencia):</b> pruebas implementadas y listas, <b>omitidas</b> en esta corrida por falta de <code>DELIVERY_TEST_CONNECTION</code>. Requiere ejecución complementaria en entorno con BD temporal para cerrar evidencia de criterios críticos.</li>
+<li><b>Casos recomendados a ampliar:</b> Haversine unitario dedicado (identidad/simetría/par conocido) y ray casting en borde/arista explícito; ejecución funcional de checkout con cobertura 422/201 y corrida de alto volumen.</li>
+</ul>
+<p><b>Conclusión:</b> la ejecución automatizada disponible en el entorno actual es <b>exitosa (0 fallos)</b> y valida el núcleo algorítmico implementado (ray casting y CVRP) y la estabilidad de integración no-PG. Para declaración de conformidad completa de la planificación (especialmente escenarios críticos de concurrencia A–D y flujos transaccionales en PostgreSQL) es necesaria la ejecución con <code>DELIVERY_TEST_CONNECTION</code> configurada y la recolección de sus evidencias.</p>
+
+<h2>8. Evidencia de consola (extracto)</h2>
+<pre>
+&gt; dotnet build delivery.slnx
+Compilación correcta. 0 Advertencia(s) 0 Errores
+
+&gt; dotnet test UnitTests/UnitTests.csproj
+Correctas! - Con error: 0, Superado: 54, Omitido: 0, Total: 54
+
+&gt; dotnet test IntegrationTests/IntegrationTests.csproj
+Correctas! - Con error: 0, Superado: 15, Omitido: 3, Total: 18
+Omitidas: Etapa6PostgresTests.ConcurrenciaProductoYStock_CumpleEscenariosABCD,
+         Etapa6PostgresTests.FlujosCheckout_CarritoMerge_RetiroDomicilio_BorradoLogico_Idempotencia,
+         AmpliacionesPostgresTests.TransferenciaAtomica_EdicionConXmin_YFiltrosGeograficos_FuncionanEnPostgres
+</pre>
+
+<p class='small'>Generado a partir de la ejecución real de build y pruebas en el repositorio delivery. Convertible a PDF desde Word/visor compatible.</p>
+</body></html>

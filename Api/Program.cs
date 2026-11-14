@@ -83,6 +83,21 @@ if (args.Contains("--crear-admin"))
     await Api.Services.AdministradorInicial.CrearAsync(app.Services, builder.Configuration);
     return;
 }
+
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    try
+    {
+        var catalogo = scope.ServiceProvider.GetRequiredService<ICatalogoService>();
+        await catalogo.SembrarCatalogoInicialAsync(CancellationToken.None);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "No se pudo sembrar el catálogo inicial (¿migraciones pendientes?).");
+    }
+}
+
 app.Run();
 
 // Permite que las pruebas de integración (WebApplicationFactory<Program>) arranquen la Api en memoria.

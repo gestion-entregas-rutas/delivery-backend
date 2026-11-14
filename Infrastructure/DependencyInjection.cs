@@ -17,11 +17,11 @@ public static class DependencyInjection
             opciones.UseNpgsql(config.GetConnectionString("DefaultConnection"), n => n.UseNetTopologySuite()));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-        var segundos = int.TryParse(config["Planificador:SegundosLimite"], out var s) && s > 0 ? s : 2;
-        services.AddSingleton<IPlanificadorRutas>(new PlanificadorRutasOrTools(segundos));
+        services.AddSingleton<IPlanificadorRutas, PlanificadorRutasPropio>();
 
         services.AddSingleton<IProtectorClaves, ProtectorClaves>();
         services.TryAddSingleton<INotificadorEventos, NotificadorNulo>();
+        services.TryAddSingleton<IPagoService, PagoSimuladoService>();
 
         return services;
     }

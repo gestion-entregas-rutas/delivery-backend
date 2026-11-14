@@ -12,7 +12,10 @@ public sealed class UsuarioService(IAppDbContext db, IProtectorClaves claves, Ti
 {
     public async Task<Usuario> AutenticarAsync(LoginRequest r, CancellationToken ct)
     {
-        var u = await db.Usuarios.SingleOrDefaultAsync(x => x.NombreNormalizado == Usuario.Normalizar(r.NombreUsuario ?? ""), ct);
+        var login = (r.NombreUsuario ?? "").Trim();
+        var normalizado = login.Length == 0 ? "" : Usuario.Normalizar(login);
+        var u = await db.Usuarios.SingleOrDefaultAsync(x =>
+            x.NombreNormalizado == normalizado || (x.CorreoNormalizado != null && x.CorreoNormalizado == normalizado), ct);
         var ahora = reloj.GetUtcNow();
         if (u is null || !u.Activo || u.BloqueadoHasta > ahora) throw new CredencialesInvalidasException();
         if (string.IsNullOrEmpty(r.Clave) || r.Clave.Length > 128 || !claves.Verificar(u.ClaveHash, r.Clave))
@@ -20,6 +23,19 @@ public sealed class UsuarioService(IAppDbContext db, IProtectorClaves claves, Ti
             u.RegistrarFallo(ahora); await db.GuardarAsync(ct); throw new CredencialesInvalidasException();
         }
         u.RegistrarIngreso(); await db.GuardarAsync(ct); return u;
+    }
+
+    public async Task<Usuario> RegistrarClienteAsync(RegistroClienteRequest r, CancellationToken ct)
+    {
+        ValidarClave(r.Password);
+        var correo = r.Correo ?? "";
+        var correoNorm = Usuario.Normalizar(correo);
+        if (await db.Usuarios.AnyAsync(x => x.CorreoNormalizado == correoNorm || x.NombreNormalizado == correoNorm, ct))
+            throw new DomainException("El correo ya está registrado.");
+        var u = Usuario.CrearCliente(r.NombreCompleto, correo, r.Telefono, claves.Proteger(r.Password), r.Cedula);
+        db.Usuarios.Add(u);
+        await db.GuardarAsync(ct);
+        return u;
     }
     public async Task<Usuario> CambiarCredencialesAsync(Guid id, CambiarCredencialesRequest r, CancellationToken ct)
     {

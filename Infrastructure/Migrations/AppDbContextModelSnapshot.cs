@@ -24,6 +24,347 @@ namespace Infrastructure.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Domain.Entities.Carrito", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ActualizadoEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenInvitado")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenInvitado")
+                        .IsUnique()
+                        .HasFilter("\"TokenInvitado\" IS NOT NULL");
+
+                    b.HasIndex("UsuarioId")
+                        .IsUnique()
+                        .HasFilter("\"UsuarioId\" IS NOT NULL");
+
+                    b.ToTable("Carritos", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.CarritoItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Cantidad")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("CarritoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductoId");
+
+                    b.HasIndex("CarritoId", "ProductoId")
+                        .IsUnique();
+
+                    b.ToTable("CarritoItems", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Categoria", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("Numero")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Activa");
+
+                    b.HasIndex("Numero")
+                        .IsUnique();
+
+                    b.ToTable("Categorias", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.DetalleOrden", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Cantidad")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NombreProducto")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<Guid>("OrdenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("ProductoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrdenId");
+
+                    b.HasIndex("ProductoId");
+
+                    b.ToTable("DetalleOrdenes", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.IdempotencyRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreadoEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Operacion")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid?>("OrdenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResultadoJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrdenId");
+
+                    b.HasIndex("Key", "Operacion")
+                        .IsUnique();
+
+                    b.ToTable("IdempotencyRecords", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Orden", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodigoRetiro")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("CreadaEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DestinatarioNombre")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("DestinatarioTelefono")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("DireccionTexto")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("EstadoPago")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateOnly?>("FechaEntrega")
+                        .HasColumnType("date");
+
+                    b.Property<TimeOnly?>("HoraEntrega")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<double?>("Latitud")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitud")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("NumeroOrden")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ObservacionesEntrega")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("PedidoLogisticoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RetiroCedula")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateOnly?>("RetiroFecha")
+                        .HasColumnType("date");
+
+                    b.Property<string>("RetiroFranja")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("RetiroNombre")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("RetiroTelefono")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("TipoEntrega")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey");
+
+                    b.HasIndex("NumeroOrden")
+                        .IsUnique();
+
+                    b.HasIndex("PedidoLogisticoId");
+
+                    b.HasIndex("ClienteId", "CreadaEn");
+
+                    b.ToTable("Ordenes", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.PagoOrden", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ConfirmadoEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreadoEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset?>("ExpiraEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Metodo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("OrdenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Referencia")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrdenId");
+
+                    b.ToTable("PagosOrden", (string)null);
+                });
+
             modelBuilder.Entity("Domain.Entities.ParadaRuta", b =>
                 {
                     b.Property<Guid>("RutaId")
@@ -111,6 +452,178 @@ namespace Infrastructure.Migrations
                     b.ToTable("Pedidos", (string)null);
                 });
 
+            modelBuilder.Entity("Domain.Entities.Producto", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activo")
+                        .HasColumnType("boolean");
+
+                    b.Property<double>("CalificacionPromedio")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid>("CategoriaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DescripcionCorta")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ImagenPrincipalUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Marca")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<decimal>("PrecioBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("PrecioOferta")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("Stock")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("SubcategoriaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SubcategoriaTexto")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("TotalResenas")
+                        .HasColumnType("integer");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Activo");
+
+                    b.HasIndex("CategoriaId");
+
+                    b.HasIndex("PrecioBase");
+
+                    b.HasIndex("SubcategoriaId");
+
+                    b.ToTable("Productos", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.ProductoCaracteristica", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProductoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductoId", "Orden");
+
+                    b.ToTable("ProductoCaracteristicas", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.ProductoFichaTecnica", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Clave")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProductoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Valor")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductoId", "Orden");
+
+                    b.ToTable("ProductoFichasTecnicas", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.ProductoMedia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ProductoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductoId", "Orden");
+
+                    b.ToTable("ProductoMedias", (string)null);
+                });
+
             modelBuilder.Entity("Domain.Entities.Repartidor", b =>
                 {
                     b.Property<Guid>("Id")
@@ -145,6 +658,43 @@ namespace Infrastructure.Migrations
                     b.HasIndex("Estado");
 
                     b.ToTable("Repartidores", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Resena", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Calificacion")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Comentario")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("CreadaEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProductoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClienteId");
+
+                    b.HasIndex("ProductoId", "ClienteId")
+                        .IsUnique();
+
+                    b.ToTable("Resenas", (string)null);
                 });
 
             modelBuilder.Entity("Domain.Entities.Ruta", b =>
@@ -195,6 +745,36 @@ namespace Infrastructure.Migrations
                     b.HasIndex("Fecha", "ZonaId", "Estado");
 
                     b.ToTable("Rutas", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Subcategoria", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("CategoriaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoriaId", "Nombre")
+                        .IsUnique();
+
+                    b.ToTable("Subcategorias", (string)null);
                 });
 
             modelBuilder.Entity("Domain.Entities.UltimaUbicacionRepartidor", b =>
@@ -248,10 +828,22 @@ namespace Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("BloqueadoHasta")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Cedula")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("ClaveHash")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Correo")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<string>("CorreoNormalizado")
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
 
                     b.Property<bool>("DebeCambiarCredenciales")
                         .HasColumnType("boolean");
@@ -259,15 +851,19 @@ namespace Infrastructure.Migrations
                     b.Property<int>("IntentosFallidos")
                         .HasColumnType("integer");
 
+                    b.Property<string>("NombreCompleto")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
                     b.Property<string>("NombreNormalizado")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
 
                     b.Property<string>("NombreUsuario")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
 
                     b.Property<Guid?>("RepartidorId")
                         .HasColumnType("uuid");
@@ -280,6 +876,10 @@ namespace Infrastructure.Migrations
                     b.Property<Guid>("SelloSeguridad")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<uint>("Version")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -288,11 +888,16 @@ namespace Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CorreoNormalizado")
+                        .IsUnique()
+                        .HasFilter("\"CorreoNormalizado\" IS NOT NULL");
+
                     b.HasIndex("NombreNormalizado")
                         .IsUnique();
 
                     b.HasIndex("RepartidorId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"RepartidorId\" IS NOT NULL");
 
                     b.ToTable("Usuarios", (string)null);
                 });
@@ -329,6 +934,67 @@ namespace Infrastructure.Migrations
                     b.HasIndex("Activa");
 
                     b.ToTable("Zonas", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Carrito", b =>
+                {
+                    b.HasOne("Domain.Entities.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("Domain.Entities.CarritoItem", b =>
+                {
+                    b.HasOne("Domain.Entities.Carrito", null)
+                        .WithMany("Items")
+                        .HasForeignKey("CarritoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Producto", null)
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.DetalleOrden", b =>
+                {
+                    b.HasOne("Domain.Entities.Orden", null)
+                        .WithMany("Detalles")
+                        .HasForeignKey("OrdenId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Producto", null)
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.Orden", b =>
+                {
+                    b.HasOne("Domain.Entities.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Pedido", null)
+                        .WithMany()
+                        .HasForeignKey("PedidoLogisticoId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Domain.Entities.PagoOrden", b =>
+                {
+                    b.HasOne("Domain.Entities.Orden", null)
+                        .WithMany()
+                        .HasForeignKey("OrdenId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Domain.Entities.ParadaRuta", b =>
@@ -407,6 +1073,62 @@ namespace Infrastructure.Migrations
                     b.Navigation("Detalles");
                 });
 
+            modelBuilder.Entity("Domain.Entities.Producto", b =>
+                {
+                    b.HasOne("Domain.Entities.Categoria", null)
+                        .WithMany()
+                        .HasForeignKey("CategoriaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Subcategoria", null)
+                        .WithMany()
+                        .HasForeignKey("SubcategoriaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Domain.Entities.ProductoCaracteristica", b =>
+                {
+                    b.HasOne("Domain.Entities.Producto", null)
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.ProductoFichaTecnica", b =>
+                {
+                    b.HasOne("Domain.Entities.Producto", null)
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.ProductoMedia", b =>
+                {
+                    b.HasOne("Domain.Entities.Producto", null)
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.Resena", b =>
+                {
+                    b.HasOne("Domain.Entities.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Domain.Entities.Producto", null)
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Domain.Entities.Ruta", b =>
                 {
                     b.HasOne("Domain.Entities.Repartidor", null)
@@ -418,6 +1140,15 @@ namespace Infrastructure.Migrations
                     b.HasOne("Domain.Entities.Zona", null)
                         .WithMany()
                         .HasForeignKey("ZonaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Domain.Entities.Subcategoria", b =>
+                {
+                    b.HasOne("Domain.Entities.Categoria", null)
+                        .WithMany()
+                        .HasForeignKey("CategoriaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -443,6 +1174,16 @@ namespace Infrastructure.Migrations
                         .WithOne()
                         .HasForeignKey("Domain.Entities.Usuario", "RepartidorId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Carrito", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Domain.Entities.Orden", b =>
+                {
+                    b.Navigation("Detalles");
                 });
 
             modelBuilder.Entity("Domain.Entities.Ruta", b =>
