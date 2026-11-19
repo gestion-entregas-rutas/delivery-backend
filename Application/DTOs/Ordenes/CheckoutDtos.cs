@@ -53,3 +53,4 @@ public sealed record RetiroTiendaDto(
 
 public sealed record ConfirmarPagoRequest(string? Referencia);
 public sealed record CancelarPagoRequest(string? Motivo);
+public sealed record InicioPagoPayPalResponse(Guid OrdenId, string PayPalOrderId, string UrlAprobacion, string EstadoPago);

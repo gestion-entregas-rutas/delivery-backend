@@ -9,6 +9,8 @@ public sealed class PagoOrden : Entity
     public Guid OrdenId { get; private set; }
     public string Metodo { get; private set; } = "Simulado";
     public string? Referencia { get; private set; }
+    public string? UrlAprobacion { get; private set; }
+    public string? ReferenciaCaptura { get; private set; }
     public EstadoPago Estado { get; private set; }
     public DateTimeOffset CreadoEn { get; private set; }
     public DateTimeOffset? ConfirmadoEn { get; private set; }
@@ -21,6 +23,18 @@ public sealed class PagoOrden : Entity
     {
         Estado = EstadoPago.Confirmado;
         ConfirmadoEn = ahora;
+    }
+
+    public void AsociarPayPal(string referencia, string urlAprobacion)
+    {
+        Metodo = "PayPal";
+        Referencia = referencia;
+        UrlAprobacion = urlAprobacion;
+    }
+
+    public void RegistrarCapturaPayPal(string referenciaCaptura)
+    {
+        ReferenciaCaptura = referenciaCaptura;
     }
 
     public void MarcarFallido()

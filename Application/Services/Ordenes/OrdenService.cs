@@ -11,9 +11,45 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Application.Services;
 
-public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoService pagos) : IOrdenService
+public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoService pagos, IPayPalService paypal) : IOrdenService
 {
     private static readonly TimeSpan ExpiracionReserva = TimeSpan.FromMinutes(15);
+
+    public async Task<InicioPagoPayPalResponse> IniciarPayPalAsync(Guid clienteId, Guid ordenId, CancellationToken ct)
+    {
+        var orden = await db.Ordenes.FirstOrDefaultAsync(o => o.Id == ordenId && o.ClienteId == clienteId, ct)
+            ?? throw new NoEncontradoException(nameof(Orden), ordenId);
+        var pago = await db.PagosOrden.FirstOrDefaultAsync(p => p.OrdenId == ordenId, ct)
+            ?? throw new DomainException("La orden no tiene un pago asociado.");
+        if (pago.Estado != EstadoPago.Pendiente || (pago.ExpiraEn.HasValue && pago.ExpiraEn <= reloj.GetUtcNow()))
+            throw new ConflictoException("La orden ya no está disponible para iniciar el pago.", "PAGO_NO_CONFIRMABLE");
+        if (!string.IsNullOrWhiteSpace(pago.UrlAprobacion) && !string.IsNullOrWhiteSpace(pago.Referencia))
+            return new(orden.Id, pago.Referencia, pago.UrlAprobacion, pago.Estado.ToString());
+
+        var creada = await paypal.CrearOrdenAsync(orden.Id, orden.NumeroOrden, orden.Total, ct);
+        pago.AsociarPayPal(creada.Id, creada.UrlAprobacion);
+        await db.SaveChangesAsync(ct);
+        return new(orden.Id, creada.Id, creada.UrlAprobacion, pago.Estado.ToString());
+    }
+
+    public async Task<CheckoutResponse> CapturarPayPalAsync(Guid clienteId, Guid ordenId, CancellationToken ct)
+    {
+        var orden = await db.Ordenes.AsNoTracking().FirstOrDefaultAsync(o => o.Id == ordenId && o.ClienteId == clienteId, ct)
+            ?? throw new NoEncontradoException(nameof(Orden), ordenId);
+        var pago = await db.PagosOrden.AsNoTracking().FirstOrDefaultAsync(p => p.OrdenId == ordenId, ct)
+            ?? throw new DomainException("La orden no tiene un pago asociado.");
+        if (pago.Metodo != "PayPal" || string.IsNullOrWhiteSpace(pago.Referencia))
+            throw new ConflictoException("No existe una orden PayPal asociada.", "PAYPAL_ORDEN_NO_ENCONTRADA");
+        if (pago.Estado == EstadoPago.Confirmado)
+            return await ConfirmarPagoAsync(clienteId, ordenId, pago.Referencia, null, ct, proveedorVerificado: true, referenciaCaptura: pago.ReferenciaCaptura);
+        if (pago.ExpiraEn.HasValue && pago.ExpiraEn <= reloj.GetUtcNow())
+            throw new ConflictoException("La reserva de pago expiró.", "PAGO_NO_CONFIRMABLE");
+
+        var resultado = await paypal.CapturarAsync(pago.Referencia, orden.Id, orden.Total, $"capture-{pago.Id:N}", ct);
+        if (!resultado.Completada || resultado.Estado != "COMPLETED" || resultado.Importe != orden.Total || resultado.Moneda != "USD")
+            throw new ConflictoException("PayPal no confirmó una captura completa por el importe esperado.", "PAYPAL_CAPTURA_NO_CONFIRMADA");
+        return await ConfirmarPagoAsync(clienteId, ordenId, pago.Referencia, null, ct, proveedorVerificado: true, referenciaCaptura: resultado.IdCaptura);
+    }
 
     public async Task<CheckoutResponse> CheckoutAsync(Guid clienteId, CheckoutRequest request, string? idempotencyKey, CancellationToken ct)
     {
@@ -150,7 +186,7 @@ public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoServ
         }
     }
 
-    public async Task<CheckoutResponse> ConfirmarPagoAsync(Guid clienteId, Guid ordenId, string? referencia, string? idempotencyKey, CancellationToken ct)
+    public async Task<CheckoutResponse> ConfirmarPagoAsync(Guid clienteId, Guid ordenId, string? referencia, string? idempotencyKey, CancellationToken ct, bool proveedorVerificado = false, string? referenciaCaptura = null)
     {
         var op = $"confirmar-pago:{ordenId}";
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
@@ -178,6 +214,8 @@ public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoServ
                 ?? throw new NoEncontradoException(nameof(Orden), ordenId);
             var pago = await db.PagosOrden.FirstOrDefaultAsync(p => p.OrdenId == orden.Id, ct)
                 ?? throw new DomainException("La orden no tiene un pago asociado.");
+            if (pago.Metodo == "PayPal" && !proveedorVerificado)
+                throw new ConflictoException("Los pagos PayPal deben confirmarse mediante el endpoint de captura.", "PAYPAL_CAPTURA_REQUERIDA");
             var ahora = reloj.GetUtcNow();
 
             if (pago.Estado == EstadoPago.Confirmado)
@@ -202,6 +240,8 @@ public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoServ
                 throw new ConflictoException("La confirmación de pago no es válida.", "PAGO_INVALIDO");
 
             pago.Confirmar(ahora);
+            if (pago.Metodo == "PayPal" && !string.IsNullOrWhiteSpace(referenciaCaptura))
+                pago.RegistrarCapturaPayPal(referenciaCaptura);
             Guid? pedidoLogisticoId = orden.PedidoLogisticoId;
             string? estadoSeguimiento = null;
 
