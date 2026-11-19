@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
 using System.Text.Json.Serialization;
 using Api.Extensions;
@@ -63,6 +64,17 @@ builder.Services.AddCors(opciones => opciones.AddPolicy(PoliticaCors, politica =
 }));
 
 var app = builder.Build();
+
+// Render termina TLS en el proxy; procesa el esquema reenviado antes de publicar OpenAPI
+// para que Swagger genere peticiones HTTPS en producción.
+if (!string.IsNullOrWhiteSpace(puertoRender))
+{
+    app.UseForwardedHeaders(new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        ForwardLimit = 1
+    });
+}
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
