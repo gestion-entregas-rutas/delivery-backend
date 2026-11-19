@@ -94,7 +94,9 @@ public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoServ
 
             var ahora = reloj.GetUtcNow();
             var expira = ahora.Add(ExpiracionReserva);
-            var numero = $"ORD-{ahora:yyyyMMddHHmmss}-{Random.Shared.Next(100, 999)}";
+            // Sufijo de 8 hex (~4.300 millones de valores por segundo): con solo 900 valores, las compras
+// simultáneas repetían el número y chocaban con el índice único IX_Ordenes_NumeroOrden (HTTP 500).
+var numero = $"ORD-{ahora:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
             var orden = Orden.Crear(numero, clienteId, tipoEntrega, total, ahora, idempotencyKey);
             string? codigoRetiro = null;
             string? estadoSeguimiento = null;

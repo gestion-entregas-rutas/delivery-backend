@@ -18,6 +18,9 @@ public sealed class PermisosRecursosFilter(AccesoRecursos acceso) : IAsyncAction
         {
             case ("Productos", "CrearResena") when user.IsInRole("Cliente"):
                 break;
+            // Tienda: el cliente opera solo sobre sus propias órdenes (el ClienteId sale del token).
+            case ("Ordenes", _) or ("Carrito", "Merge") when user.IsInRole("Cliente"):
+                break;
             case ("Ubicaciones", "Registrar"):
                 AccesoRecursos.Repartidor(user); break;
             case ("Ubicaciones", "Obtener"):
