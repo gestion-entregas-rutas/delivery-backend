@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: delivery-api
+    runtime: docker
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: OpenApi__Enabled
+        value: "true"
+      - key: Jwt__Key
+        generateValue: true
+      - key: Jwt__Issuer
+        value: Delivery.Api
+      - key: Jwt__Audience
+        value: Delivery.Clientes
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: Cors__Origenes__0
+        sync: false
+      - key: Cors__Origenes__1
+        sync: false
+      - key: PayPal__Habilitado
+        value: "true"
+      - key: PayPal__Entorno
+        value: Sandbox
+      - key: PayPal__ClientId
+        sync: false
+      - key: PayPal__ClientSecret
+        sync: false
+      - key: PayPal__MerchantId
+        sync: false
+      - key: PayPal__ReturnUrl
+        sync: false
+      - key: PayPal__CancelUrl
+        sync: false
