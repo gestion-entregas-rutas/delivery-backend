@@ -52,6 +52,13 @@ public sealed class OrdenesController(IOrdenService ordenes) : ControllerBase
     public async Task<ActionResult<IReadOnlyList<OrdenMiaDto>>> Mias(CancellationToken ct)
         => Ok(await ordenes.ListarMiasAsync(ClienteId, ct));
 
+    /// <summary>Obtiene el resumen y los productos de una orden perteneciente al cliente autenticado.</summary>
+    [HttpGet("{id:guid}/detalle"), Authorize(Roles = "Cliente")]
+    [ProducesResponseType(typeof(OrdenDetalleMiaDto), StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<OrdenDetalleMiaDto>> ObtenerDetalleMia(Guid id, CancellationToken ct)
+        => Ok(await ordenes.ObtenerDetalleMiaAsync(ClienteId, id, ct));
+
     [HttpGet("retiros-tienda"), Authorize(Policy = "Administrador")]
     public async Task<ActionResult<IReadOnlyList<RetiroTiendaDto>>> RetirosTienda(CancellationToken ct)
         => Ok(await ordenes.ListarRetirosTiendaAsync(ct));

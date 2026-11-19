@@ -38,6 +38,29 @@ public sealed record OrdenMiaDto(
     Guid? PedidoLogisticoId,
     string? EstadoSeguimiento);
 
+public sealed record OrdenDetalleMiaDto(
+    Guid OrdenId,
+    string NumeroOrden,
+    string EstadoOrden,
+    string EstadoPago,
+    decimal Total,
+    string TipoEntrega,
+    DateTimeOffset CreadaEn,
+    string? CodigoRetiro,
+    DateOnly? FechaRetiro,
+    string? FranjaHoraria,
+    string? DireccionEntrega,
+    DateOnly? FechaEntrega,
+    TimeOnly? HoraEntrega,
+    IReadOnlyList<DetalleOrdenMiaDto> Items);
+
+public sealed record DetalleOrdenMiaDto(
+    Guid ProductoId,
+    string NombreProducto,
+    decimal PrecioUnitario,
+    int Cantidad,
+    decimal Subtotal);
+
 public sealed record RetiroTiendaDto(
     Guid OrdenId,
     string NumeroOrden,
