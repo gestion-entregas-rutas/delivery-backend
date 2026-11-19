@@ -347,6 +347,52 @@ public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoServ
         }).ToList();
     }
 
+    public async Task<OrdenDetalleMiaDto> ObtenerDetalleMiaAsync(Guid clienteId, Guid ordenId, CancellationToken ct)
+    {
+        var orden = await db.Ordenes.AsNoTracking()
+            .Where(o => o.Id == ordenId && o.ClienteId == clienteId)
+            .Select(o => new
+            {
+                o.Id,
+                o.NumeroOrden,
+                o.Estado,
+                o.EstadoPago,
+                o.Total,
+                o.TipoEntrega,
+                o.CreadaEn,
+                o.CodigoRetiro,
+                o.RetiroFecha,
+                o.RetiroFranja,
+                o.DireccionTexto,
+                o.FechaEntrega,
+                o.HoraEntrega
+            })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NoEncontradoException(nameof(Orden), ordenId);
+
+        var items = await db.DetalleOrdenes.AsNoTracking()
+            .Where(d => d.OrdenId == ordenId)
+            .OrderBy(d => d.NombreProducto)
+            .Select(d => new DetalleOrdenMiaDto(d.ProductoId, d.NombreProducto, d.PrecioUnitario, d.Cantidad, d.Subtotal))
+            .ToListAsync(ct);
+
+        return new OrdenDetalleMiaDto(
+            orden.Id,
+            orden.NumeroOrden,
+            orden.Estado.ToString(),
+            orden.EstadoPago.ToString(),
+            orden.Total,
+            orden.TipoEntrega.ToString(),
+            orden.CreadaEn,
+            orden.CodigoRetiro,
+            orden.RetiroFecha,
+            orden.RetiroFranja,
+            orden.DireccionTexto,
+            orden.FechaEntrega,
+            orden.HoraEntrega,
+            items);
+    }
+
     public async Task<IReadOnlyList<RetiroTiendaDto>> ListarRetirosTiendaAsync(CancellationToken ct)
     {
         return await db.Ordenes.AsNoTracking()
