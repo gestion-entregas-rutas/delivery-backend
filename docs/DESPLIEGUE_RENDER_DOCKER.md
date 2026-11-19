@@ -16,6 +16,7 @@ Esta configuración crea un Web Service de Render desde el `Dockerfile` del repo
 3. Cuando solicite las variables `sync: false`, ingresa los valores de producción/Sandbox directamente en Render. No los pongas en `render.yaml`, `Dockerfile`, `appsettings.json` ni en el repositorio.
 4. El Blueprint trae `http://localhost:4200` y `http://localhost:4300` para pruebas locales. Para usar frontends desplegados, cambia los valores por sus orígenes HTTPS reales en Render. Escribe solo el origen, sin ruta ni barra final.
 5. Configura las rutas de retorno y cancelación del frontend de producción en `PayPal__ReturnUrl` y `PayPal__CancelUrl`. En `render.yaml` están declaradas para `https://ecommerce-f2vm.vercel.app/pago/paypal/retorno` y `/pago/paypal/cancelado`; confirma que esas rutas existan en el frontend. En este archivo se mantiene PayPal en Sandbox.
+5. Configura las rutas reales de retorno y cancelación de la tienda en `PayPal__ReturnUrl` y `PayPal__CancelUrl`. En este archivo se mantiene PayPal en Sandbox.
 6. Revisa los secretos del servicio en **Environment** antes de iniciar el deploy.
 
 `render.yaml` configura `OpenApi__Enabled=true`, por lo que Swagger y el documento OpenAPI estarán publicados en Render para facilitar la integración. Si no quieres exponer Swagger públicamente después de la integración, cambia esa variable a `false` desde el Dashboard.
