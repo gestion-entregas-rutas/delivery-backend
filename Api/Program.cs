@@ -14,6 +14,12 @@ const string PoliticaCors = "Frontend";
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Render entrega el puerto público mediante PORT y enruta al contenedor por HTTP.
+// En desarrollo local se conserva el puerto definido en launchSettings.json.
+var puertoRender = Environment.GetEnvironmentVariable("PORT");
+if (int.TryParse(puertoRender, out var puerto) && puerto is > 0 and <= 65535)
+    builder.WebHost.UseUrls($"http://0.0.0.0:{puerto}");
+
 builder.Services.AddAutenticacion(builder.Configuration);
 builder.Services.AddSingleton<SesionesSignalR>();
 builder.Services.AddSingleton<IRevocadorSesiones>(sp => sp.GetRequiredService<SesionesSignalR>());
@@ -28,6 +34,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddControllers(o => o.Filters.AddService<PermisosRecursosFilter>())
     .AddJsonOptions(opciones => opciones.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddHealthChecks();
 builder.Services.AddOpenApi(o => o.AddDocumentTransformer<SeguridadOpenApiTransformer>());
 
 builder.Services.AddSignalR(o => o.AddFilter<PermisosHubFilter>())
@@ -60,14 +67,15 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("OpenApi:Enabled"))
 {
     app.MapOpenApi().AllowAnonymous();
     app.MapSwaggerUi();
 }
 
-// El perfil HTTP permite probar Angular sin certificados locales ni redirecciones CORS.
-if (!app.Environment.IsDevelopment())
+// En Render, TLS termina en el proxy y el contenedor recibe HTTP en PORT.
+// Fuera de Render se conserva la redirección HTTPS en entornos no Development.
+if (!app.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(puertoRender))
     app.UseHttpsRedirection();
 app.UseCors(PoliticaCors);
 app.UseRateLimiter();
@@ -77,6 +85,7 @@ app.UseAuthorization();
 // Controladores protegidos por la política predeterminada; login permite acceso anónimo.
 app.MapControllers();
 app.MapHub<SeguimientoHub>("/hubs/seguimiento", o => o.CloseOnAuthenticationExpiration = true).RequireAuthorization("Completo");
+app.MapHealthChecks("/health").AllowAnonymous();
 
 if (args.Contains("--crear-admin"))
 {
