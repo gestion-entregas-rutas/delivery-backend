@@ -45,7 +45,7 @@ public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoServ
         if (pago.ExpiraEn.HasValue && pago.ExpiraEn <= reloj.GetUtcNow())
             throw new ConflictoException("La reserva de pago expiró.", "PAGO_NO_CONFIRMABLE");
 
-        var resultado = await paypal.CapturarAsync(pago.Referencia, $"capture-{pago.Id:N}", ct);
+        var resultado = await paypal.CapturarAsync(pago.Referencia, orden.Id, orden.Total, $"capture-{pago.Id:N}", ct);
         if (!resultado.Completada || resultado.Estado != "COMPLETED" || resultado.Importe != orden.Total || resultado.Moneda != "USD")
             throw new ConflictoException("PayPal no confirmó una captura completa por el importe esperado.", "PAYPAL_CAPTURA_NO_CONFIRMADA");
         return await ConfirmarPagoAsync(clienteId, ordenId, pago.Referencia, null, ct, proveedorVerificado: true, referenciaCaptura: resultado.IdCaptura);

@@ -6,7 +6,7 @@ public sealed record CapturaPayPal(bool Completada, string Estado, string? IdCap
 public interface IPayPalService
 {
     Task<OrdenPayPalCreada> CrearOrdenAsync(Guid ordenId, string numeroOrden, decimal total, CancellationToken ct);
-    Task<CapturaPayPal> CapturarAsync(string paypalOrderId, string requestId, CancellationToken ct);
+    Task<CapturaPayPal> CapturarAsync(string paypalOrderId, Guid ordenId, decimal totalEsperado, string requestId, CancellationToken ct);
 }
 
 public interface IPagoService

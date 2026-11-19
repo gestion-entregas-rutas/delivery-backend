@@ -40,27 +40,82 @@ public sealed class PayPalCheckoutService(HttpClient http, IOptions<PayPalOption
         return new(id, approve);
     }
 
-    public async Task<CapturaPayPal> CapturarAsync(string paypalOrderId, string requestId, CancellationToken ct)
+    public async Task<CapturaPayPal> CapturarAsync(string paypalOrderId, Guid ordenId, decimal totalEsperado, string requestId, CancellationToken ct)
     {
         var token = await ObtenerTokenAsync(ct);
+
+        using var consulta = new HttpRequestMessage(HttpMethod.Get, $"/v2/checkout/orders/{Uri.EscapeDataString(paypalOrderId)}");
+        consulta.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var respuestaConsulta = await http.SendAsync(consulta, ct);
+        using var ordenPayPal = await LeerRespuestaAsync(respuestaConsulta, ct);
+        var ordenRoot = ordenPayPal.RootElement;
+        var estadoOrden = ordenRoot.TryGetProperty("status", out var estadoJson) ? estadoJson.GetString() : null;
+        var unidades = ordenRoot.TryGetProperty("purchase_units", out var unidadesJson) && unidadesJson.ValueKind == JsonValueKind.Array
+            ? unidadesJson.EnumerateArray().ToArray()
+            : [];
+        if (unidades.Length != 1)
+            throw new ConflictoException("La orden PayPal no contiene una unidad de compra válida.", "PAYPAL_ORDEN_INVALIDA");
+
+        var unidad = unidades[0];
+        var referenciaInterna = unidad.TryGetProperty("reference_id", out var refJson) ? refJson.GetString() : null;
+        var customId = unidad.TryGetProperty("custom_id", out var customJson) ? customJson.GetString() : null;
+        var payee = unidad.TryGetProperty("payee", out var payeeJson) ? payeeJson : default;
+        var merchant = payee.ValueKind == JsonValueKind.Object && payee.TryGetProperty("merchant_id", out var merchantJson)
+            ? merchantJson.GetString()
+            : null;
+        var importeUnidad = LeerImporte(unidad, "amount");
+        var monedaUnidad = LeerMoneda(unidad, "amount");
+
+        if (referenciaInterna != ordenId.ToString("N") || customId != ordenId.ToString("N") ||
+            merchant != _config.MerchantId || importeUnidad != totalEsperado || monedaUnidad != "USD")
+            throw new ConflictoException("La orden PayPal no coincide con la orden, el importe, la moneda o el vendedor esperados.", "PAYPAL_ORDEN_NO_COINCIDE");
+
+        // Permite recuperar el resultado si PayPal completó la captura pero se perdió la respuesta anterior.
+        if (estadoOrden == "COMPLETED")
+            return LeerCaptura(ordenRoot, merchant);
+        if (estadoOrden != "APPROVED")
+            throw new ConflictoException("El comprador aún no ha aprobado el pago en PayPal.", "PAYPAL_PAGO_NO_APROBADO");
+
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/v2/checkout/orders/{Uri.EscapeDataString(paypalOrderId)}/capture");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Add("PayPal-Request-Id", requestId);
         request.Content = JsonContent.Create(new { });
         using var response = await http.SendAsync(request, ct);
         using var doc = await LeerRespuestaAsync(response, ct);
-        var root = doc.RootElement;
-        var unit = root.GetProperty("purchase_units").EnumerateArray().FirstOrDefault();
-        var payee = unit.ValueKind == JsonValueKind.Undefined ? default : unit.GetProperty("payee");
-        var payments = unit.ValueKind == JsonValueKind.Undefined ? default : unit.GetProperty("payments");
-        var capture = payments.ValueKind == JsonValueKind.Undefined ? default : payments.GetProperty("captures").EnumerateArray().FirstOrDefault();
-        var amount = capture.ValueKind == JsonValueKind.Undefined ? (decimal?)null : decimal.Parse(capture.GetProperty("amount").GetProperty("value").GetString()!, System.Globalization.CultureInfo.InvariantCulture);
-        var currency = capture.ValueKind == JsonValueKind.Undefined ? null : capture.GetProperty("amount").GetProperty("currency_code").GetString();
-        var merchant = payee.ValueKind == JsonValueKind.Undefined ? null : payee.GetProperty("merchant_id").GetString();
-        var captureId = capture.ValueKind == JsonValueKind.Undefined ? null : capture.GetProperty("id").GetString();
-        var captureStatus = capture.ValueKind == JsonValueKind.Undefined ? null : capture.GetProperty("status").GetString();
-        return new(root.GetProperty("status").GetString() == "COMPLETED" && captureStatus == "COMPLETED" && merchant == _config.MerchantId, root.GetProperty("status").GetString() ?? "UNKNOWN", captureId, amount, currency, merchant);
+        return LeerCaptura(doc.RootElement, merchant);
     }
+
+    private static CapturaPayPal LeerCaptura(JsonElement root, string? merchant)
+    {
+        var estado = root.TryGetProperty("status", out var estadoJson) ? estadoJson.GetString() ?? "UNKNOWN" : "UNKNOWN";
+        if (!root.TryGetProperty("purchase_units", out var unidades) || unidades.ValueKind != JsonValueKind.Array)
+            return new(false, estado, null, null, null, merchant);
+        foreach (var unidad in unidades.EnumerateArray())
+        {
+            if (!unidad.TryGetProperty("payments", out var pagos) || !pagos.TryGetProperty("captures", out var capturas) || capturas.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var captura in capturas.EnumerateArray())
+            {
+                var captureStatus = captura.TryGetProperty("status", out var statusJson) ? statusJson.GetString() : null;
+                var id = captura.TryGetProperty("id", out var idJson) ? idJson.GetString() : null;
+                return new(estado == "COMPLETED" && captureStatus == "COMPLETED", estado, id,
+                    LeerImporte(captura, "amount"), LeerMoneda(captura, "amount"), merchant);
+            }
+        }
+        return new(false, estado, null, null, null, merchant);
+    }
+
+    private static decimal? LeerImporte(JsonElement contenedor, string propiedad)
+    {
+        if (!contenedor.TryGetProperty(propiedad, out var importe) || !importe.TryGetProperty("value", out var valor)) return null;
+        return decimal.TryParse(valor.GetString(), System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture, out var resultado) ? resultado : null;
+    }
+
+    private static string? LeerMoneda(JsonElement contenedor, string propiedad)
+        => contenedor.TryGetProperty(propiedad, out var importe) && importe.TryGetProperty("currency_code", out var moneda)
+            ? moneda.GetString()
+            : null;
 
     private async Task<string> ObtenerTokenAsync(CancellationToken ct)
     {
