@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgis/postgis:17-3.5
+    container_name: delivery-postgres-local
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-delivery}
+      POSTGRES_USER: ${POSTGRES_USER:-delivery}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - delivery-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+
+  api:
+    image: delivery-api:local
+    container_name: delivery-api-local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: 10000
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB:-delivery};Username=${POSTGRES_USER:-delivery};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env};Include Error Detail=true
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Jwt__Issuer: Delivery.Api
+      Jwt__Audience: Delivery.Clientes
+      Bootstrap__Usuario: ${BOOTSTRAP_USER:-}
+      Bootstrap__Clave: ${BOOTSTRAP_PASSWORD:-}
+      OpenApi__Enabled: "true"
+      Cors__Origenes__0: http://localhost:4200
+      Cors__Origenes__1: http://localhost:4300
+      Cors__Origenes__2: http://localhost:8080
+      PayPal__Habilitado: ${PAYPAL_ENABLED:-false}
+      PayPal__Entorno: Sandbox
+      PayPal__ClientId: ${PAYPAL_CLIENT_ID:-}
+      PayPal__ClientSecret: ${PAYPAL_CLIENT_SECRET:-}
+      PayPal__MerchantId: ${PAYPAL_MERCHANT_ID:-}
+      PayPal__ReturnUrl: http://localhost:4300/pago/paypal/retorno
+      PayPal__CancelUrl: http://localhost:4300/pago/paypal/cancelado
+    ports:
+      - "0.0.0.0:5289:10000"
+
+volumes:
+  delivery-postgres-data:
