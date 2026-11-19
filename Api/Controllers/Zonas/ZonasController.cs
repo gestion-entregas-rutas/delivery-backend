@@ -1,5 +1,6 @@
 using Application.DTOs;
 using Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
@@ -39,4 +40,10 @@ public sealed class ZonasController(IZonaService zonas) : ControllerBase
     [ProducesResponseType<IReadOnlyList<ZonaDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ZonaDto>>> Listar(CancellationToken ct) =>
         Ok(await zonas.ListarAsync(ct));
+
+    /// <summary>Lista solo las zonas activas con su polígono, para mostrar la cobertura de entrega en la tienda.</summary>
+    [HttpGet("cobertura"), AllowAnonymous]
+    [ProducesResponseType<IReadOnlyList<ZonaDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<ZonaDto>>> Cobertura(CancellationToken ct) =>
+        Ok((await zonas.ListarAsync(ct)).Where(z => z.Activa).ToList());
 }
