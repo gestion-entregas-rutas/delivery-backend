@@ -178,6 +178,7 @@ public sealed class AutenticacionTests
         private readonly string bd = Guid.NewGuid().ToString();
         protected override void ConfigureWebHost(IWebHostBuilder b)
         {
+            b.UseSetting("Logging:EventLog:LogLevel:Default", "None");
             b.UseSetting("Jwt:Key", "Clave-Solo-Pruebas-Integracion-2026-123456789");
             b.UseSetting("Jwt:Issuer", "pruebas"); b.UseSetting("Jwt:Audience", "pruebas-clientes");
             b.ConfigureServices(s =>
@@ -218,6 +219,19 @@ public sealed class AutenticacionTests
         public DbSet<UltimaUbicacionRepartidor> Ubicaciones => Set<UltimaUbicacionRepartidor>();
         public DbSet<Ruta> Rutas => Set<Ruta>(); public DbSet<Zona> Zonas => Set<Zona>();
         public DbSet<Repartidor> Repartidores => Set<Repartidor>();
+        public DbSet<Categoria> Categorias => Set<Categoria>();
+        public DbSet<Subcategoria> Subcategorias => Set<Subcategoria>();
+        public DbSet<Producto> Productos => Set<Producto>();
+        public DbSet<ProductoMedia> ProductoMedias => Set<ProductoMedia>();
+        public DbSet<ProductoFichaTecnica> ProductoFichasTecnicas => Set<ProductoFichaTecnica>();
+        public DbSet<ProductoCaracteristica> ProductoCaracteristicas => Set<ProductoCaracteristica>();
+        public DbSet<Resena> Resenas => Set<Resena>();
+        public DbSet<Carrito> Carritos => Set<Carrito>();
+        public DbSet<CarritoItem> CarritoItems => Set<CarritoItem>();
+        public DbSet<Orden> Ordenes => Set<Orden>();
+        public DbSet<DetalleOrden> DetalleOrdenes => Set<DetalleOrden>();
+        public DbSet<PagoOrden> PagosOrden => Set<PagoOrden>();
+        public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
         public void LimpiarCambios() => ChangeTracker.Clear();
         protected override void OnModelCreating(ModelBuilder b)
         {

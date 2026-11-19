@@ -21,7 +21,7 @@ public sealed class ManejadorExcepciones(ILogger<ManejadorExcepciones> logger) :
             AccesoDenegadoException => Crear(403, "Acceso denegado", excepcion.Message),
             ValidationException v => ProblemaDeValidacion(v),
             NoEncontradoException => Crear(StatusCodes.Status404NotFound, "Recurso no encontrado", excepcion.Message),
-            ConflictoException => Crear(StatusCodes.Status409Conflict, "Conflicto de concurrencia", excepcion.Message),
+            ConflictoException c => CrearConflicto(c),
             TransicionInvalidaException => Crear(StatusCodes.Status409Conflict, "Transición de estado inválida", excepcion.Message),
             DomainException => Crear(StatusCodes.Status422UnprocessableEntity, "Regla de negocio incumplida", excepcion.Message),
             _ => null
@@ -45,6 +45,15 @@ public sealed class ManejadorExcepciones(ILogger<ManejadorExcepciones> logger) :
 
     private static ProblemDetails Crear(int estado, string titulo, string detalle) =>
         new() { Status = estado, Title = titulo, Detail = detalle };
+
+    private static ProblemDetails CrearConflicto(ConflictoException ex)
+    {
+        var p = Crear(StatusCodes.Status409Conflict, "Conflicto de concurrencia", ex.Message);
+        if (!string.IsNullOrWhiteSpace(ex.Codigo)) p.Extensions["codigo"] = ex.Codigo;
+        if (ex.Datos is not null)
+            foreach (var kv in ex.Datos) p.Extensions[kv.Key] = kv.Value;
+        return p;
+    }
 
     private static ValidationProblemDetails ProblemaDeValidacion(ValidationException ex) => new(
         ex.Errors.GroupBy(e => e.PropertyName)

@@ -14,6 +14,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<Zona> Zonas => Set<Zona>();
     public DbSet<Repartidor> Repartidores => Set<Repartidor>();
     public DbSet<Ruta> Rutas => Set<Ruta>();
+    public DbSet<Categoria> Categorias => Set<Categoria>();
+    public DbSet<Subcategoria> Subcategorias => Set<Subcategoria>();
+    public DbSet<Producto> Productos => Set<Producto>();
+    public DbSet<ProductoMedia> ProductoMedias => Set<ProductoMedia>();
+    public DbSet<ProductoFichaTecnica> ProductoFichasTecnicas => Set<ProductoFichaTecnica>();
+    public DbSet<ProductoCaracteristica> ProductoCaracteristicas => Set<ProductoCaracteristica>();
+    public DbSet<Resena> Resenas => Set<Resena>();
+    public DbSet<Carrito> Carritos => Set<Carrito>();
+    public DbSet<CarritoItem> CarritoItems => Set<CarritoItem>();
+    public DbSet<Orden> Ordenes => Set<Orden>();
+    public DbSet<DetalleOrden> DetalleOrdenes => Set<DetalleOrden>();
+    public DbSet<PagoOrden> PagosOrden => Set<PagoOrden>();
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

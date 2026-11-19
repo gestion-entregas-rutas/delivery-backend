@@ -22,6 +22,9 @@ public static class DependencyInjection
         services.AddScoped<IRutaService, RutaService>();
         services.AddScoped<ISeguimientoService, SeguimientoService>();
         services.AddScoped<IAsignadorUltimoMomento, AsignadorUltimoMomento>();
+        services.AddScoped<ICatalogoService, CatalogoService>();
+        services.AddScoped<ICarritoService, CarritoService>();
+        services.AddScoped<IOrdenService, OrdenService>();
 
         return services;
     }

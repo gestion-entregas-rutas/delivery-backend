@@ -18,6 +18,11 @@ public sealed class AutenticacionController(IUsuarioService usuarios, EmisorJwt 
     public async Task<ActionResult<SesionDto>> Login(LoginRequest r, CancellationToken ct) =>
         tokens.Crear(await usuarios.AutenticarAsync(r, ct));
 
+    /// <summary>Registra un cliente y devuelve una sesión autenticada.</summary>
+    [HttpPost("registro-cliente"), AllowAnonymous, EnableRateLimiting("Login")]
+    public async Task<ActionResult<SesionDto>> RegistroCliente(RegistroClienteRequest r, CancellationToken ct) =>
+        tokens.Crear(await usuarios.RegistrarClienteAsync(r, ct));
+
     /// <summary>Consulta la identidad autenticada, incluido el cambio obligatorio pendiente.</summary>
     [HttpGet("me")]
     public async Task<ActionResult<UsuarioDto>> Me(CancellationToken ct) =>

@@ -1,5 +1,6 @@
 using Api.Services;
 using Application.Exceptions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Controllers;
 namespace Api.Middleware;
@@ -10,10 +11,17 @@ public sealed class PermisosRecursosFilter(AccesoRecursos acceso) : IAsyncAction
     {
         var user = ctx.HttpContext.User;
         var a = (ControllerActionDescriptor)ctx.ActionDescriptor;
-        if (a.ControllerName is "Autenticacion" or "Usuarios" || user.IsInRole("Administrador")) { await next(); return; }
+        if (a.EndpointMetadata.OfType<IAllowAnonymous>().Any() ||
+            a.ControllerName is "Autenticacion" or "Usuarios" || user.IsInRole("Administrador")) { await next(); return; }
         var ct = ctx.HttpContext.RequestAborted;
         switch (a.ControllerName, a.ActionName)
         {
+            case ("Ordenes", "Checkout" or "ConfirmarPago" or "CancelarPago" or "IniciarPayPal" or "CapturarPayPal" or "Mias")
+                when user.IsInRole("Cliente"):
+                // El controlador exige el rol Cliente y el servicio limita cada orden al propietario del JWT.
+                break;
+            case ("Productos", "CrearResena") when user.IsInRole("Cliente"):
+                break;
             case ("Ubicaciones", "Registrar"):
                 AccesoRecursos.Repartidor(user); break;
             case ("Ubicaciones", "Obtener"):
