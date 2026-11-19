@@ -2,6 +2,7 @@ using Application.Interfaces;
 using Domain.Interfaces;
 using Infrastructure.Data;
 using Infrastructure.ExternalServices;
+using Infrastructure.ExternalServices.Pagos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,9 @@ public static class DependencyInjection
         services.AddSingleton<IProtectorClaves, ProtectorClaves>();
         services.TryAddSingleton<INotificadorEventos, NotificadorNulo>();
         services.TryAddSingleton<IPagoService, PagoSimuladoService>();
+        services.Configure<PayPalOptions>(config.GetSection(PayPalOptions.Section));
+        services.AddHttpClient<IPayPalService, PayPalCheckoutService>(client =>
+            client.BaseAddress = new Uri("https://api-m.sandbox.paypal.com"));
 
         return services;
     }

@@ -29,6 +29,18 @@ public sealed class OrdenesController(IOrdenService ordenes) : ControllerBase
         return Ok(resp);
     }
 
+    /// <summary>Inicia una orden de pago PayPal en entorno Sandbox.</summary>
+    [HttpPost("{id:guid}/paypal/orden"), Authorize(Roles = "Cliente")]
+    [ProducesResponseType(typeof(InicioPagoPayPalResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<InicioPagoPayPalResponse>> IniciarPayPal(Guid id, CancellationToken ct)
+        => Ok(await ordenes.IniciarPayPalAsync(ClienteId, id, ct));
+
+    /// <summary>Captura y confirma en el backend el pago aprobado por el comprador en PayPal.</summary>
+    [HttpPost("{id:guid}/paypal/captura"), Authorize(Roles = "Cliente")]
+    [ProducesResponseType(typeof(CheckoutResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CheckoutResponse>> CapturarPayPal(Guid id, CancellationToken ct)
+        => Ok(await ordenes.CapturarPayPalAsync(ClienteId, id, ct));
+
     [HttpPost("{id:guid}/pago/cancelar"), Authorize(Roles = "Cliente")]
     public async Task<ActionResult<CheckoutResponse>> CancelarPago(Guid id, [FromBody] CancelarPagoRequest? request, CancellationToken ct)
     {
