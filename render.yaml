@@ -20,8 +20,12 @@ services:
       - key: ConnectionStrings__DefaultConnection
         sync: false
       - key: Cors__Origenes__0
-        value: http://localhost:4200
+        value: https://delivery-frontend-web.vercel.app
       - key: Cors__Origenes__1
+        value: https://ecommerce-f2vm.vercel.app
+      - key: Cors__Origenes__2
+        value: http://localhost:4200
+      - key: Cors__Origenes__3
         value: http://localhost:4300
       - key: PayPal__Habilitado
         value: "true"
@@ -34,6 +38,6 @@ services:
       - key: PayPal__MerchantId
         sync: false
       - key: PayPal__ReturnUrl
-        sync: false
+        value: https://ecommerce-f2vm.vercel.app/pago/paypal/retorno
       - key: PayPal__CancelUrl
-        sync: false
+        value: https://ecommerce-f2vm.vercel.app/pago/paypal/cancelado
