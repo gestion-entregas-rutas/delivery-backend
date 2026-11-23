@@ -7,6 +7,8 @@ using Domain.Entities;
 using Domain.Enums;
 using Domain.Exceptions;
 using Domain.Interfaces;
+using Domain.Services;
+using Domain.ValueObjects;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,13 +19,22 @@ public sealed class RutaService(
     IPlanificadorRutas planificador,
     IValidator<ArmarRutasRequest> validador,
     INotificadorEventos notificador,
-    TimeProvider reloj) : IRutaService
+    TimeProvider reloj,
+    ReglasPlanificacion reglas,
+    EstimadorRutas estimador) : IRutaService
 {
     public async Task<ArmadoRutasDto> ArmarRutasAsync(ArmarRutasRequest request, CancellationToken ct = default)
     {
         await validador.ValidateAndThrowAsync(request, ct);
-        if (request.Fecha < reloj.Hoy())
+        var hoyPlanificacion = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(reloj.GetUtcNow(),
+            TimeZoneInfo.FindSystemTimeZoneById(reglas.ZonaHoraria)).DateTime);
+        if (request.Fecha < hoyPlanificacion)
             throw new DomainException("No se pueden armar rutas para una fecha pasada.");
+
+        var contexto = request.Origen is { } origen
+            ? reglas.CrearContexto(request.Fecha, new GeoPoint(origen.Latitud, origen.Longitud),
+                reloj.GetUtcNow(), request.SalidaProgramadaEn)
+            : null;
 
         var zonas = await db.Zonas
             .Where(z => z.Activa && (request.ZonaId == null || z.Id == request.ZonaId))
@@ -49,13 +60,15 @@ public sealed class RutaService(
 
             var asignaciones = libres.Count == 0
                 ? []
-                : planificador.Planificar(zona, pendientes, libres);
+                : planificador.Planificar(zona, pendientes, libres, contexto);
 
             foreach (var asignacion in asignaciones.Where(a => a.PedidosEnOrden.Count > 0))
             {
                 var ruta = Ruta.Crear(zona, asignacion.Repartidor, request.Fecha, reloj.GetUtcNow());
                 foreach (var pedido in asignacion.PedidosEnOrden)
                     ruta.AgregarPedido(pedido);
+                if (asignacion.Estimacion is { } estimacion)
+                    ruta.AplicarEstimacion(estimacion, reloj.GetUtcNow());
 
                 db.Rutas.Add(ruta);
                 creadas.Add(ruta);
@@ -90,13 +103,13 @@ public sealed class RutaService(
         return rutas.Select(r => r.ToDto()).ToList();
     }
 
-    public async Task<RutaDto> AgregarPedidoAsync(Guid rutaId, Guid pedidoId, int? posicion, CancellationToken ct = default)
+    public async Task<RutaDto> AgregarPedidoAsync(Guid rutaId, Guid pedidoId, int? posicion, CancellationToken ct = default, bool forzar = false)
     {
         var ruta = await CargarAsync(rutaId, ct);
         var pedido = await db.Pedidos.FirstOrDefaultAsync(p => p.Id == pedidoId, ct)
                      ?? throw new NoEncontradoException(nameof(Pedido), pedidoId);
 
-        ruta.AgregarPedido(pedido, posicion);
+        await estimador.ValidarCambioAsync([ruta], () => ruta.AgregarPedido(pedido, posicion), forzar, ct);
         var dto = await GuardarYNotificarAsync(ruta, ct);
         await notificador.PedidoActualizadoAsync(pedido.ToDto(), ct);
         return dto;
@@ -108,6 +121,7 @@ public sealed class RutaService(
         var pedido = ruta.Paradas.FirstOrDefault(p => p.PedidoId == pedidoId)?.Pedido;
 
         ruta.QuitarPedido(pedidoId);
+        await estimador.ReestimarAsync(ruta, ct); // quitar una parada no retrasa a las demás
         var dto = await GuardarYNotificarAsync(ruta, ct);
 
         if (pedido is not null)
@@ -121,6 +135,7 @@ public sealed class RutaService(
         var repartidor = await db.Repartidores.FirstAsync(r => r.Id == ruta.RepartidorId, ct);
 
         ruta.Iniciar(repartidor, reloj.GetUtcNow());
+        await estimador.ReestimarAsync(ruta, ct);
         return await GuardarYNotificarAsync(ruta, ct);
     }
 
@@ -145,7 +160,7 @@ public sealed class RutaService(
     {
         var ruta = await CargarAsync(rutaId, ct);
         if (ruta.Version != r.Version) throw new ConflictoException("La ruta cambió. Recargue antes de reordenar.");
-        ruta.ReordenarParadas(r.PedidosEnOrden);
+        await estimador.ValidarCambioAsync([ruta], () => ruta.ReordenarParadas(r.PedidosEnOrden), r.Forzar, ct);
         return await GuardarYNotificarAsync(ruta, ct);
     }
 
@@ -157,7 +172,8 @@ public sealed class RutaService(
             throw new ConflictoException("Una ruta cambió. Recargue ambas antes de transferir.");
         var pedido = origen.Paradas.FirstOrDefault(p => p.PedidoId == pedidoId)?.Pedido
             ?? throw new NoEncontradoException("Pedido en ruta", pedidoId);
-        origen.TransferirPedidoA(destino, pedidoId, r.Posicion);
+        await estimador.ValidarCambioAsync([origen, destino],
+            () => origen.TransferirPedidoA(destino, pedidoId, r.Posicion), r.Forzar, ct);
         // Un solo SaveChanges: EF Core usa una transacción para las dos rutas y sus paradas.
         await db.GuardarAsync(ct);
         var salida = new TransferenciaPedidoDto(origen.ToDto(), destino.ToDto());
@@ -165,6 +181,14 @@ public sealed class RutaService(
         await notificador.RutaActualizadaAsync(salida.Destino, ct);
         await notificador.PedidoActualizadoAsync(pedido.ToDto(), ct);
         return salida;
+    }
+
+    public async Task<RutaDto> RecalcularEstimacionesAsync(Guid rutaId, CancellationToken ct)
+    {
+        var ruta = await CargarAsync(rutaId, ct);
+        if (await estimador.ReestimarAsync(ruta, ct) is null)
+            throw new DomainException("No se puede estimar la ruta: no está activa, no tiene paradas restantes o no hay un origen conocido.");
+        return await GuardarYNotificarAsync(ruta, ct);
     }
 
     private async Task<RutaDto> GuardarYNotificarAsync(Ruta ruta, CancellationToken ct)

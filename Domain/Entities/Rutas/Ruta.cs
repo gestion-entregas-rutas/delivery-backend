@@ -1,6 +1,7 @@
 using Domain.Common;
 using Domain.Enums;
 using Domain.Exceptions;
+using Domain.Services;
 
 namespace Domain.Entities;
 
@@ -20,6 +21,60 @@ public class Ruta : Entity
     public DateTimeOffset CreadaEn { get; private set; }
     public DateTimeOffset? IniciadaEn { get; private set; }
     public DateTimeOffset? FinalizadaEn { get; private set; }
+    public double? OrigenLatitud { get; private set; }
+    public double? OrigenLongitud { get; private set; }
+    public DateTimeOffset? SalidaProgramadaEn { get; private set; }
+    public DateTimeOffset? EstimacionesActualizadasEn { get; private set; }
+    public string? ModeloEstimacion { get; private set; }
+    public double? DistanciaEstimadaKm { get; private set; }
+
+    public void AplicarEstimacion(EstimacionRuta estimacion, DateTimeOffset ahora)
+    {
+        if (!estimacion.Paradas.Select(p => p.PedidoId).SequenceEqual(Paradas.Select(p => p.PedidoId)))
+            throw new DomainException("La estimación no corresponde al orden actual de las paradas.");
+        OrigenLatitud = estimacion.Contexto.Origen.Latitud;
+        OrigenLongitud = estimacion.Contexto.Origen.Longitud;
+        SalidaProgramadaEn = estimacion.Contexto.Salida.ToUniversalTime();
+        EstimacionesActualizadasEn = ahora.ToUniversalTime();
+        ModeloEstimacion = "HaversineAjustadoV1";
+        DistanciaEstimadaKm = estimacion.DistanciaEstimadaKm;
+        foreach (var (parada, calculo) in Paradas.Zip(estimacion.Paradas)) parada.Estimar(calculo);
+    }
+
+    /// <summary>
+    /// Recalcula las paradas que faltan entregar (en orden). Las entregadas quedan sin estimación
+    /// porque tienen <see cref="Pedido.EntregadoEn"/> real. En rutas planificadas se actualiza
+    /// la salida programada; el compromiso de los pedidos nunca se modifica.
+    /// </summary>
+    public void ActualizarEstimaciones(EstimacionRuta estimacion, DateTimeOffset ahora)
+    {
+        var restantes = ParadasRestantes;
+        if (!estimacion.Paradas.Select(p => p.PedidoId).SequenceEqual(restantes.Select(p => p.PedidoId)))
+            throw new DomainException("La estimación no corresponde a las paradas restantes de la ruta.");
+        if (Estado == EstadoRuta.Planificada)
+        {
+            OrigenLatitud = estimacion.Contexto.Origen.Latitud;
+            OrigenLongitud = estimacion.Contexto.Origen.Longitud;
+            SalidaProgramadaEn = estimacion.Contexto.Salida.ToUniversalTime();
+        }
+        EstimacionesActualizadasEn = ahora.ToUniversalTime();
+        ModeloEstimacion = "HaversineAjustadoV1";
+        DistanciaEstimadaKm = estimacion.DistanciaEstimadaKm;
+        foreach (var parada in _paradas) parada.InvalidarEstimacion();
+        foreach (var (parada, calculo) in restantes.Zip(estimacion.Paradas)) parada.Estimar(calculo);
+    }
+
+    /// <summary>Paradas aún no entregadas, en orden de visita.</summary>
+    public IReadOnlyList<ParadaRuta> ParadasRestantes =>
+        Paradas.Where(p => p.Pedido.Estado != EstadoPedido.Entregado).ToList();
+
+    // Hasta integrar la replanificación operativa, nunca publicar cálculos obsoletos.
+    private void InvalidarEstimaciones()
+    {
+        EstimacionesActualizadasEn = null;
+        DistanciaEstimadaKm = null;
+        foreach (var parada in _paradas) parada.InvalidarEstimacion();
+    }
 
     // Al cargar desde la BD la lista no llega ordenada: siempre se expone según Orden.
     public IReadOnlyList<ParadaRuta> Paradas => _paradas.OrderBy(p => p.Orden).ToList();
@@ -98,6 +153,7 @@ public class Ruta : Entity
         repartidor.IniciarSalida();
         Estado = EstadoRuta.EnCurso;
         IniciadaEn = ahora;
+        InvalidarEstimaciones();
     }
 
     public void MarcarEnCamino(Guid pedidoId)
@@ -113,6 +169,7 @@ public class Ruta : Entity
             throw new DomainException("La ruta pertenece a otro repartidor.");
 
         BuscarParada(pedidoId).Pedido.MarcarEntregado(ahora);
+        InvalidarEstimaciones();
 
         if (_paradas.All(p => p.Pedido.Estado == EstadoPedido.Entregado))
         {
@@ -177,6 +234,7 @@ public class Ruta : Entity
 
     private void Reordenar()
     {
+        InvalidarEstimaciones();
         for (var i = 0; i < _paradas.Count; i++)
             _paradas[i].Orden = i + 1;
     }

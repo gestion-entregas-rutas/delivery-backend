@@ -1,10 +1,11 @@
 using Domain.Entities;
+using Domain.Services;
 
 namespace Domain.Interfaces;
 
 /// <summary>
-/// Armado masivo de rutas (CVRP) para una fecha y zona. Infrastructure lo implementa
-/// (p. ej. con OR-Tools); el Domain solo fija el contrato y valida el resultado al crear las rutas.
+/// Armado heurístico propio para una fecha y zona. Con contexto se comprueba la
+/// finalización estimada de cada entrega; sin contexto se conserva el armado histórico.
 /// Cada asignación no debe exceder min(zona.MaxPedidosPorRuta, repartidor.CapacidadMaxima).
 /// </summary>
 public interface IPlanificadorRutas
@@ -12,5 +13,6 @@ public interface IPlanificadorRutas
     IReadOnlyList<AsignacionPlanificada> Planificar(
         Zona zona,
         IReadOnlyList<Pedido> pedidosPendientes,
-        IReadOnlyList<Repartidor> repartidoresDisponibles);
+        IReadOnlyList<Repartidor> repartidoresDisponibles,
+        ContextoPlanificacion? contexto = null);
 }

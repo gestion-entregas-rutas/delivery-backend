@@ -12,7 +12,8 @@ namespace Application.Services;
 public sealed class SeguimientoService(
     IAppDbContext db,
     INotificadorEventos notificador,
-    TimeProvider reloj) : ISeguimientoService
+    TimeProvider reloj,
+    EstimadorRutas estimador) : ISeguimientoService
 {
     public async Task<PedidoDto> MarcarEnCaminoAsync(Guid pedidoId, CancellationToken ct = default)
     {
@@ -45,6 +46,8 @@ public sealed class SeguimientoService(
 
     private async Task<PedidoDto> GuardarYNotificarAsync(Ruta ruta, Guid pedidoId, CancellationToken ct)
     {
+        // Cada avance del reparto recalcula las paradas restantes desde la posición real.
+        await estimador.ReestimarAsync(ruta, ct);
         await db.GuardarAsync(ct);
 
         var pedido = ruta.Paradas.First(p => p.PedidoId == pedidoId).Pedido.ToDto();

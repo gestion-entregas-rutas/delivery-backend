@@ -35,6 +35,23 @@ public sealed class Orden : Entity
     public TimeOnly? HoraEntrega { get; private set; }
     public string? ObservacionesEntrega { get; private set; }
 
+    /// <summary>
+    /// Intervalo elegido en checkout. Mientras el pago está pendiente y no vence actúa como
+    /// reserva temporal de capacidad; al confirmar el pago pasa al pedido como compromiso.
+    /// </summary>
+    public DateTimeOffset? CompromisoInicioEn { get; private set; }
+    public DateTimeOffset? CompromisoFinEn { get; private set; }
+
+    public void ReservarIntervalo(DateTimeOffset inicio, DateTimeOffset fin)
+    {
+        if (TipoEntrega != TipoEntrega.Domicilio)
+            throw new Exceptions.DomainException("Solo las entregas a domicilio reservan intervalo.");
+        if (inicio >= fin)
+            throw new Exceptions.DomainException("El intervalo de entrega debe terminar después de iniciar.");
+        CompromisoInicioEn = inicio.ToUniversalTime();
+        CompromisoFinEn = fin.ToUniversalTime();
+    }
+
     public IReadOnlyCollection<DetalleOrden> Detalles => _detalles;
 
     public static Orden Crear(string numeroOrden, Guid clienteId, TipoEntrega tipoEntrega, decimal total, DateTimeOffset ahora, string? idempotencyKey)

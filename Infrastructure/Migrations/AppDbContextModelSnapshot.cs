@@ -220,6 +220,12 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<DateTimeOffset?>("CompromisoFinEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("CompromisoInicioEn")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("CreadaEn")
                         .HasColumnType("timestamp with time zone");
 
@@ -318,6 +324,8 @@ namespace Infrastructure.Migrations
 
                     b.HasIndex("ClienteId", "CreadaEn");
 
+                    b.HasIndex("FechaEntrega", "Estado");
+
                     b.ToTable("Ordenes", (string)null);
                 });
 
@@ -381,8 +389,20 @@ namespace Infrastructure.Migrations
                     b.Property<Guid>("PedidoId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("FinalizacionEstimadaEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("InicioAtencionEstimadoEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("LlegadaEstimadaEn")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("Orden")
                         .HasColumnType("integer");
+
+                    b.Property<double?>("TrasladoEstimadoMinutos")
+                        .HasColumnType("double precision");
 
                     b.HasKey("RutaId", "PedidoId");
 
@@ -406,6 +426,12 @@ namespace Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset?>("CompromisoFinEn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("CompromisoInicioEn")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Direccion")
                         .IsRequired()
@@ -431,6 +457,9 @@ namespace Infrastructure.Migrations
 
                     b.Property<Guid?>("RutaId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("TiempoServicioMinutos")
+                        .HasColumnType("integer");
 
                     b.Property<Point>("Ubicacion")
                         .IsRequired()
@@ -716,10 +745,16 @@ namespace Infrastructure.Migrations
                     b.Property<DateTimeOffset>("CreadaEn")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<double?>("DistanciaEstimadaKm")
+                        .HasColumnType("double precision");
+
                     b.Property<string>("Estado")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("EstimacionesActualizadasEn")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateOnly>("Fecha")
                         .HasColumnType("date");
@@ -730,8 +765,20 @@ namespace Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("IniciadaEn")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ModeloEstimacion")
+                        .HasColumnType("text");
+
+                    b.Property<double?>("OrigenLatitud")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("OrigenLongitud")
+                        .HasColumnType("double precision");
+
                     b.Property<Guid>("RepartidorId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("SalidaProgramadaEn")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<uint>("Version")
                         .IsConcurrencyToken()

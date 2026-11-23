@@ -3,7 +3,10 @@ namespace Application.DTOs;
 public sealed record CheckoutItemRequest(Guid ProductoId, int Cantidad);
 public sealed record MetodoPagoRequest(string? Tipo, string? Titular, string? Ultimos4, string? ReferenciaSimulada);
 public sealed record DatosRetiroTiendaRequest(string CedulaQuienRetira, string NombreQuienRetira, string TelefonoContacto, DateOnly FechaRetiro, string FranjaHoraria);
-public sealed record DatosDomicilioRequest(string DestinatarioNombre, string DestinatarioTelefono, string DireccionTexto, double Latitud, double Longitud, DateOnly FechaEntrega, TimeOnly HoraEntrega, string? Observaciones);
+/// <param name="CompromisoInicioEn">Intervalo elegido de GET /api/entregas/intervalos (opcional por compatibilidad).
+/// Si se envía, el backend lo vuelve a comprobar y lo reserva mientras el pago esté pendiente.</param>
+public sealed record DatosDomicilioRequest(string DestinatarioNombre, string DestinatarioTelefono, string DireccionTexto, double Latitud, double Longitud, DateOnly FechaEntrega, TimeOnly HoraEntrega, string? Observaciones,
+    DateTimeOffset? CompromisoInicioEn = null, DateTimeOffset? CompromisoFinEn = null);
 
 public sealed record CheckoutRequest(
     List<CheckoutItemRequest> Items,
@@ -24,7 +27,9 @@ public sealed record CheckoutResponse(
     string? EstadoSeguimiento,
     Guid? PagoId,
     string? ReferenciaPago,
-    DateTimeOffset? ExpiraEn);
+    DateTimeOffset? ExpiraEn,
+    DateTimeOffset? CompromisoInicioEn = null,
+    DateTimeOffset? CompromisoFinEn = null);
 
 public sealed record OrdenMiaDto(
     Guid OrdenId,
@@ -36,7 +41,11 @@ public sealed record OrdenMiaDto(
     DateTimeOffset CreadaEn,
     string? CodigoRetiro,
     Guid? PedidoLogisticoId,
-    string? EstadoSeguimiento);
+    string? EstadoSeguimiento,
+    DateTimeOffset? CompromisoInicioEn = null,
+    DateTimeOffset? CompromisoFinEn = null,
+    DateTimeOffset? FinalizacionEstimadaEn = null,
+    Domain.Services.ResultadoPuntualidad? Puntualidad = null);
 
 public sealed record RetiroTiendaDto(
     Guid OrdenId,

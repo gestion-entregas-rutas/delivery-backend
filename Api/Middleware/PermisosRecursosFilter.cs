@@ -22,6 +22,9 @@ public sealed class PermisosRecursosFilter(AccesoRecursos acceso) : IAsyncAction
                 break;
             case ("Productos", "CrearResena") when user.IsInRole("Cliente"):
                 break;
+            // Tienda: consulta de intervalos para su propia compra (no reserva capacidad).
+            case ("Entregas", "Intervalos") when user.IsInRole("Cliente"):
+                break;
             // Tienda: el cliente opera solo sobre sus propias órdenes (el ClienteId sale del token).
             case ("Ordenes", _) or ("Carrito", "Merge") when user.IsInRole("Cliente"):
                 break;

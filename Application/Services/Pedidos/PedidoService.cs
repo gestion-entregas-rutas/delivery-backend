@@ -6,6 +6,7 @@ using Application.Mappings;
 using Domain.Entities;
 using Domain.Exceptions;
 using Domain.ValueObjects;
+using Domain.Services;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +18,8 @@ public sealed class PedidoService(
     IValidator<ActualizarPedidoRequest> validadorEdicion,
     IAsignadorUltimoMomento asignador,
     INotificadorEventos notificador,
-    TimeProvider reloj) : IPedidoService
+    TimeProvider reloj,
+    ReglasPlanificacion reglas) : IPedidoService
 {
     public async Task<RegistroPedidoDto> RegistrarAsync(RegistrarPedidoRequest request, CancellationToken ct = default)
     {
@@ -30,6 +32,9 @@ public sealed class PedidoService(
         var pedido = Pedido.Registrar(
             request.ClienteNombre, request.ClienteTelefono, request.Direccion, ubicacion, zona,
             request.FechaEntrega, request.HoraEntrega, hoy, reloj.GetUtcNow(), request.Detalles.ToDomain());
+
+        ValidarFechaCompromiso(request.FechaEntrega, request.CompromisoInicioEn, request.CompromisoFinEn);
+        pedido.ConfigurarCompromiso(request.CompromisoInicioEn, request.CompromisoFinEn, request.TiempoServicioMinutos);
 
         db.Pedidos.Add(pedido);
         await db.GuardarAsync(ct);
@@ -111,11 +116,24 @@ public sealed class PedidoService(
         var punto = new GeoPoint(r.Latitud, r.Longitud);
         var zona = await ResolverZonaAsync(r.ZonaId, punto, ct);
         var anterior = pedido.FechaEntrega;
+        // Un cliente anterior que no envía campos nuevos conserva el compromiso existente.
+        var inicio = r.CompromisoInicioEn ?? pedido.CompromisoInicioEn;
+        var fin = r.CompromisoFinEn ?? pedido.CompromisoFinEn;
+        ValidarFechaCompromiso(r.FechaEntrega, inicio, fin);
+        pedido.ConfigurarCompromiso(inicio, fin, r.TiempoServicioMinutos ?? pedido.TiempoServicioMinutos);
         pedido.Actualizar(r.ClienteNombre, r.ClienteTelefono, r.Direccion, punto, zona,
             r.FechaEntrega, r.HoraEntrega, reloj.Hoy(), r.Detalles.ToDomain());
         await db.GuardarAsync(ct);
         var dto = pedido.ToDto();
         await notificador.PedidoReprogramadoAsync(dto, anterior, ct);
         return dto;
+    }
+
+    private void ValidarFechaCompromiso(DateOnly fecha, DateTimeOffset? inicio, DateTimeOffset? fin)
+    {
+        var zona = TimeZoneInfo.FindSystemTimeZoneById(reglas.ZonaHoraria);
+        foreach (var instante in new[] { inicio, fin }.OfType<DateTimeOffset>())
+            if (DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instante, zona).DateTime) != fecha)
+                throw new DomainException("El intervalo comprometido debe pertenecer a la fecha de entrega en la zona horaria del negocio.");
     }
 }
