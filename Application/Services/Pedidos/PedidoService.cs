@@ -9,6 +9,7 @@ using Domain.ValueObjects;
 using Domain.Services;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Application.Services;
 
@@ -19,7 +20,8 @@ public sealed class PedidoService(
     IAsignadorUltimoMomento asignador,
     INotificadorEventos notificador,
     TimeProvider reloj,
-    ReglasPlanificacion reglas) : IPedidoService
+    ReglasPlanificacion reglas,
+    IDisponibilidadEntregas disponibilidad) : IPedidoService
 {
     public async Task<RegistroPedidoDto> RegistrarAsync(RegistrarPedidoRequest request, CancellationToken ct = default)
     {
@@ -36,8 +38,26 @@ public sealed class PedidoService(
         ValidarFechaCompromiso(request.FechaEntrega, request.CompromisoInicioEn, request.CompromisoFinEn);
         pedido.ConfigurarCompromiso(request.CompromisoInicioEn, request.CompromisoFinEn, request.TiempoServicioMinutos);
 
-        db.Pedidos.Add(pedido);
-        await db.GuardarAsync(ct);
+        // Con verificación: mismo criterio que el checkout (rejilla ofrecida, capacidad real y
+        // bloqueo por fecha) para no prometer el mismo cupo a dos pedidos simultáneos.
+        IDbContextTransaction? tx = null;
+        try
+        {
+            if (request.VerificarDisponibilidad && request.CompromisoInicioEn is { } inicio && request.CompromisoFinEn is { } fin)
+            {
+                if (db is DbContext contexto && contexto.Database.IsRelational())
+                    tx = await contexto.Database.BeginTransactionAsync(ct);
+                await db.BloquearPlanificacionAsync(request.FechaEntrega, ct);
+                await disponibilidad.VerificarAsync(request.FechaEntrega, ubicacion, inicio, fin, ct);
+            }
+            db.Pedidos.Add(pedido);
+            await db.GuardarAsync(ct);
+            if (tx is not null) await tx.CommitAsync(ct);
+        }
+        finally
+        {
+            if (tx is not null) await tx.DisposeAsync();
+        }
 
         ResultadoAsignacionDto? asignacion = null;
         if (pedido.EsDeUltimoMomento(hoy))

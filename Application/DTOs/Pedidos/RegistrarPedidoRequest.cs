@@ -13,4 +13,7 @@ public sealed record RegistrarPedidoRequest(
     DetallesPedidoRequest? Detalles = null,
     DateTimeOffset? CompromisoInicioEn = null,
     DateTimeOffset? CompromisoFinEn = null,
-    int? TiempoServicioMinutos = null);
+    int? TiempoServicioMinutos = null,
+    // true (panel con selector de horarios): el intervalo debe ser de la oferta y se vuelve a comprobar
+    // con bloqueo por fecha, igual que en el checkout. false conserva el registro libre anterior.
+    bool VerificarDisponibilidad = false);

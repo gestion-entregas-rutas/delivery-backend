@@ -142,6 +142,34 @@ public sealed class IntervalosEntregaTests
     }
 
     [Fact]
+    public async Task Panel_RegistraPedidoConVerificacion_NoPrometeDosVecesElUltimoCupo()
+    {
+        await using var fabrica = new Fabrica();
+        await using var app = ConLocal(fabrica);
+        var zonaId = await Sembrar(app.Services, capacidadRepartidor: 1);
+        using var admin = app.CreateClient();
+        await AmpliacionesPedidosTests.Ingresar(admin, "admin");
+        RegistrarPedidoRequest Solicitud(string nombre, DateTimeOffset desde, DateTimeOffset hasta) => new(nombre, "0991234567", "Calle", 0, 0,
+            Fecha, new(9, 0), zonaId, CompromisoInicioEn: desde, CompromisoFinEn: hasta, VerificarDisponibilidad: true);
+
+        var primero = await admin.PostAsJsonAsync("/api/pedidos", Solicitud("Uno", Hora(9), Hora(9, 30)));
+        Assert.Equal(HttpStatusCode.Created, primero.StatusCode);
+        var pedido = (await primero.Content.ReadFromJsonAsync<RegistroPedidoDto>(Json))!.Pedido;
+        Assert.Equal(Hora(9), pedido.CompromisoInicioEn);
+
+        // Un solo repartidor con un solo cupo: ya no queda horario para otro pedido ese día.
+        var segundo = await admin.PostAsJsonAsync("/api/pedidos", Solicitud("Dos", Hora(10), Hora(10, 30)));
+        Assert.Equal(HttpStatusCode.Conflict, segundo.StatusCode);
+        Assert.Equal("INTERVALO_NO_DISPONIBLE", (await segundo.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("codigo").GetString());
+
+        var fueraDeRejilla = await admin.PostAsJsonAsync("/api/pedidos", Solicitud("Tres", Hora(9, 10), Hora(9, 40)));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, fueraDeRejilla.StatusCode);
+        var sinHorario = await admin.PostAsJsonAsync("/api/pedidos", new RegistrarPedidoRequest("Cuatro", "0991", "Calle", 0, 0,
+            Fecha, new(9, 0), zonaId, VerificarDisponibilidad: true));
+        Assert.Equal(HttpStatusCode.BadRequest, sinHorario.StatusCode);
+    }
+
+    [Fact]
     public async Task CambioDeRuta_QuePoneEnRiesgo_SeRechaza_SalvoForzar_YAvancesRecalculan()
     {
         await using var fabrica = new Fabrica();
