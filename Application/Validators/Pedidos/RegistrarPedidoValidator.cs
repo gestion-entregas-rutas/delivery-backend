@@ -17,6 +17,8 @@ public class RegistrarPedidoValidator : AbstractValidator<RegistrarPedidoRequest
             .WithMessage("Indique ambos extremos del intervalo comprometido.");
         RuleFor(x => x.CompromisoFinEn).GreaterThan(x => x.CompromisoInicioEn)
             .When(x => x.CompromisoInicioEn.HasValue && x.CompromisoFinEn.HasValue);
+        RuleFor(x => x.CompromisoInicioEn).NotNull().When(x => x.VerificarDisponibilidad)
+            .WithMessage("Elija un horario de entrega disponible.");
         RuleFor(x => x.TiempoServicioMinutos).InclusiveBetween(1, 240)
             .When(x => x.TiempoServicioMinutos.HasValue);
     }

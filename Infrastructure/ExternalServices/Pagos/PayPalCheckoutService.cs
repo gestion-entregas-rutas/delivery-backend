@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -117,16 +117,32 @@ public sealed class PayPalCheckoutService(HttpClient http, IOptions<PayPalOption
             ? moneda.GetString()
             : null;
 
+    // El token OAuth de PayPal dura horas: pedirlo en cada operación añadía un viaje completo
+    // a PayPal antes de crear o capturar la orden. Se reutiliza hasta un minuto antes de vencer.
+    private static readonly SemaphoreSlim BloqueoToken = new(1, 1);
+    private static (string Clave, string Token, DateTimeOffset Vence)? tokenEnCache;
+
     private async Task<string> ObtenerTokenAsync(CancellationToken ct)
     {
         _config.Validar();
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/oauth2/token");
-        var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_config.ClientId}:{_config.ClientSecret}"));
-        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["grant_type"] = "client_credentials" });
-        using var response = await http.SendAsync(request, ct);
-        using var doc = await LeerRespuestaAsync(response, ct);
-        return doc.RootElement.GetProperty("access_token").GetString()!;
+        var clave = $"{http.BaseAddress}|{_config.ClientId}";
+        if (tokenEnCache is { } c && c.Clave == clave && c.Vence > DateTimeOffset.UtcNow) return c.Token;
+        await BloqueoToken.WaitAsync(ct);
+        try
+        {
+            if (tokenEnCache is { } d && d.Clave == clave && d.Vence > DateTimeOffset.UtcNow) return d.Token;
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/oauth2/token");
+            var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_config.ClientId}:{_config.ClientSecret}"));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+            request.Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["grant_type"] = "client_credentials" });
+            using var response = await http.SendAsync(request, ct);
+            using var doc = await LeerRespuestaAsync(response, ct);
+            var token = doc.RootElement.GetProperty("access_token").GetString()!;
+            var segundos = doc.RootElement.TryGetProperty("expires_in", out var exp) && exp.TryGetInt32(out var s) ? s : 0;
+            if (segundos > 120) tokenEnCache = (clave, token, DateTimeOffset.UtcNow.AddSeconds(segundos - 60));
+            return token;
+        }
+        finally { BloqueoToken.Release(); }
     }
 
     private static async Task<JsonDocument> LeerRespuestaAsync(HttpResponseMessage response, CancellationToken ct)
