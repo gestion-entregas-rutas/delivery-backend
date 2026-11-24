@@ -16,7 +16,7 @@ public sealed class PermisosRecursosFilter(AccesoRecursos acceso) : IAsyncAction
         var ct = ctx.HttpContext.RequestAborted;
         switch (a.ControllerName, a.ActionName)
         {
-            case ("Ordenes", "Checkout" or "ConfirmarPago" or "CancelarPago" or "IniciarPayPal" or "CapturarPayPal" or "Mias")
+            case ("Ordenes", "Checkout" or "ConfirmarPago" or "CancelarPago" or "IniciarPayPal" or "CapturarPayPal" or "Mias" or "ObtenerDetalleMia")
                 when user.IsInRole("Cliente"):
                 // El controlador exige el rol Cliente y el servicio limita cada orden al propietario del JWT.
                 break;

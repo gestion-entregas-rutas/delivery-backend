@@ -10,6 +10,7 @@ public interface IOrdenService
     Task<InicioPagoPayPalResponse> IniciarPayPalAsync(Guid clienteId, Guid ordenId, CancellationToken ct);
     Task<CheckoutResponse> CapturarPayPalAsync(Guid clienteId, Guid ordenId, CancellationToken ct);
     Task<IReadOnlyList<OrdenMiaDto>> ListarMiasAsync(Guid clienteId, CancellationToken ct);
+    Task<OrdenDetalleMiaDto> ObtenerDetalleMiaAsync(Guid clienteId, Guid ordenId, CancellationToken ct);
     Task<IReadOnlyList<RetiroTiendaDto>> ListarRetirosTiendaAsync(CancellationToken ct);
     Task MarcarRetiradoAsync(Guid ordenId, CancellationToken ct);
 }
