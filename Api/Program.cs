@@ -64,6 +64,12 @@ builder.Services.AddCors(opciones => opciones.AddPolicy(PoliticaCors, politica =
 
 var app = builder.Build();
 
+if (args.Contains("--preparar-local"))
+{
+    await PreparacionLocal.EjecutarAsync(app.Services, app.Environment);
+    return;
+}
+
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
@@ -90,6 +96,12 @@ app.MapHealthChecks("/health").AllowAnonymous();
 if (args.Contains("--crear-admin"))
 {
     await Api.Services.AdministradorInicial.CrearAsync(app.Services, builder.Configuration);
+    return;
+}
+
+if (args.Contains("--restablecer-admin-local"))
+{
+    await Api.Services.AdministradorInicial.RestablecerLocalAsync(app.Services, builder.Configuration);
     return;
 }
 

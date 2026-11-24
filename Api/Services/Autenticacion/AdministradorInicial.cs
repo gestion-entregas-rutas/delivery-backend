@@ -7,6 +7,22 @@ namespace Api.Services;
 
 public static class AdministradorInicial
 {
+    public static async Task RestablecerLocalAsync(IServiceProvider services, IConfiguration config)
+    {
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        var administradores = await db.Usuarios.Where(u => u.Rol == RolUsuario.Administrador).Take(2).ToListAsync();
+        if (administradores.Count != 1)
+            throw new InvalidOperationException("Se requiere exactamente un administrador existente para restablecerlo.");
+        var usuario = administradores[0];
+        if (!usuario.Activo)
+            throw new InvalidOperationException("El administrador esta desactivado; revisa la cuenta antes de restablecerla.");
+        var clave = config["Bootstrap:Clave"] ?? throw new InvalidOperationException("Configure Bootstrap:Clave.");
+        UsuarioService.ValidarClave(clave);
+        usuario.RestablecerClave(scope.ServiceProvider.GetRequiredService<IProtectorClaves>().Proteger(clave));
+        await db.SaveChangesAsync();
+        Console.WriteLine($"Clave temporal restablecida para el administrador: {usuario.NombreUsuario}. Debe cambiarla al ingresar.");
+    }
     // Operación local explícita, sin endpoint público ni credenciales predeterminadas.
     public static async Task CrearAsync(IServiceProvider services, IConfiguration config)
     {
