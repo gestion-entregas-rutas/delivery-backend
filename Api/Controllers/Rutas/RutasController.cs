@@ -39,6 +39,19 @@ public sealed class RutasController(IRutaService rutas) : ControllerBase
     public async Task<ActionResult<ArmadoRutasDto>> Armar(ArmarRutasRequest request, CancellationToken ct) =>
         await rutas.ArmarRutasAsync(request, ct);
 
+    /// <summary>
+    /// Reoptimiza las rutas planificadas de una fecha (y zona) junto con los pedidos pendientes.
+    /// Con <c>aplicar=false</c> devuelve solo la vista previa; con <c>true</c> la aplica. No toca rutas en curso.
+    /// </summary>
+    [HttpPost("reoptimizar")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Administrador")]
+    [ProducesResponseType<ReoptimizacionDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ReoptimizacionDto>> Reoptimizar(ReoptimizarRutasRequest request, CancellationToken ct) =>
+        await rutas.ReoptimizarAsync(request, ct);
+
     /// <summary>Obtiene una ruta con sus paradas en orden.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType<RutaDto>(StatusCodes.Status200OK)]

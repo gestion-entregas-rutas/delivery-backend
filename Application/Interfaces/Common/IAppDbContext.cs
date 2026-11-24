@@ -24,6 +24,7 @@ public interface IAppDbContext
     DbSet<DetalleOrden> DetalleOrdenes { get; }
     DbSet<PagoOrden> PagosOrden { get; }
     DbSet<IdempotencyRecord> IdempotencyRecords { get; }
+    DbSet<UbicacionLocal> UbicacionLocal { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 

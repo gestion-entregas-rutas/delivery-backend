@@ -31,10 +31,7 @@ public sealed class RutaService(
         if (request.Fecha < hoyPlanificacion)
             throw new DomainException("No se pueden armar rutas para una fecha pasada.");
 
-        var contexto = request.Origen is { } origen
-            ? reglas.CrearContexto(request.Fecha, new GeoPoint(origen.Latitud, origen.Longitud),
-                reloj.GetUtcNow(), request.SalidaProgramadaEn)
-            : null;
+        var contexto = await ContextoArmadoAsync(request.Fecha, request.Origen, request.SalidaProgramadaEn, ct);
 
         var zonas = await db.Zonas
             .Where(z => z.Activa && (request.ZonaId == null || z.Id == request.ZonaId))
@@ -87,6 +84,125 @@ public sealed class RutaService(
             await notificador.PedidoActualizadoAsync(pedido.ToDto(), ct);
 
         return new ArmadoRutasDto(request.Fecha, dtos, sinAsignar);
+    }
+
+    /// <summary>Origen del armado: el enviado por el panel o, si no llega, el local guardado/configurado.</summary>
+    private async Task<ContextoPlanificacion?> ContextoArmadoAsync(DateOnly fecha, PuntoDto? origen,
+        DateTimeOffset? salida, CancellationToken ct)
+    {
+        GeoPoint? punto = origen is { } o ? new GeoPoint(o.Latitud, o.Longitud) : await estimador.OrigenLocalAsync(ct);
+        return punto is { } p ? reglas.CrearContexto(fecha, p, reloj.GetUtcNow(), salida) : null;
+    }
+
+    public async Task<ReoptimizacionDto> ReoptimizarAsync(ReoptimizarRutasRequest request, CancellationToken ct = default)
+    {
+        if (request.Fecha == default) throw new DomainException("Indique la fecha a reoptimizar.");
+        if (request.Fecha < reglas.FechaLocal(reloj.GetUtcNow()))
+            throw new DomainException("No se pueden reoptimizar rutas de una fecha pasada.");
+        var contexto = await ContextoArmadoAsync(request.Fecha, request.Origen, null, ct);
+
+        // Al aplicar: una transacción con el mismo bloqueo por fecha que el checkout, para no
+        // chocar con pedidos o reservas que entran mientras se rearman las rutas.
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx = null;
+        try
+        {
+            if (request.Aplicar && db is DbContext contexto0 && contexto0.Database.IsRelational())
+                tx = await contexto0.Database.BeginTransactionAsync(ct);
+            if (request.Aplicar) await db.BloquearPlanificacionAsync(request.Fecha, ct);
+
+            var zonas = await db.Zonas
+                .Where(z => z.Activa && (request.ZonaId == null || z.Id == request.ZonaId))
+                .OrderBy(z => z.Nombre)
+                .ToListAsync(ct);
+            if (request.ZonaId is { } zonaId && zonas.Count == 0)
+                throw new NoEncontradoException(nameof(Zona), zonaId);
+            var zonaIds = zonas.Select(z => z.Id).ToList();
+
+            // Solo rutas planificadas: las que ya salieron (EnCurso) o terminaron no se tocan.
+            var planificadas = await db.Rutas.ConParadas()
+                .Where(r => r.Fecha == request.Fecha && r.Estado == EstadoRuta.Planificada && zonaIds.Contains(r.ZonaId))
+                .ToListAsync(ct);
+            var antes = planificadas
+                .SelectMany(r => r.Paradas.Select(p => (PedidoId: p.Pedido.Id, r.RepartidorId)))
+                .ToDictionary(x => x.PedidoId, x => x.RepartidorId);
+            var pedidosPlanificados = planificadas.SelectMany(r => r.Paradas).Select(p => p.Pedido).ToList();
+            var repartidoresPlan = planificadas.Select(r => r.RepartidorId).ToHashSet();
+
+            var libres = await db.RepartidoresLibresAsync(request.Fecha, ct);
+            var propios = await db.Repartidores
+                .Where(r => repartidoresPlan.Contains(r.Id) && r.Estado == EstadoRepartidor.Disponible)
+                .ToListAsync(ct);
+            var disponibles = libres.Concat(propios).DistinctBy(r => r.Id).OrderBy(r => r.Id).ToList();
+
+            var pendientes = await db.Pedidos
+                .Where(p => p.FechaEntrega == request.Fecha && zonaIds.Contains(p.ZonaId) && p.Estado == EstadoPedido.Pendiente)
+                .ToListAsync(ct);
+
+            if (request.Aplicar)
+            {
+                foreach (var ruta in planificadas) ruta.Cancelar(); // devuelve sus pedidos a pendientes
+                await db.GuardarAsync(ct);
+            }
+
+            var todos = pendientes.Concat(pedidosPlanificados).DistinctBy(p => p.Id).ToList();
+            var propuestas = new List<RutaPropuestaDto>();
+            var creadas = new List<Ruta>();
+            int sinAsignar = 0, quedanSinRuta = 0;
+            foreach (var zona in zonas)
+            {
+                var deZona = todos.Where(p => p.ZonaId == zona.Id).OrderBy(p => p.HoraEntrega).ThenBy(p => p.Id).ToList();
+                if (deZona.Count == 0) continue;
+                var asignaciones = disponibles.Count == 0 ? [] : planificador.Planificar(zona, deZona, disponibles, contexto);
+                var asignados = new HashSet<Guid>();
+                foreach (var asignacion in asignaciones.Where(a => a.PedidosEnOrden.Count > 0))
+                {
+                    var estimadas = asignacion.Estimacion?.Paradas.ToDictionary(p => p.PedidoId);
+                    propuestas.Add(new RutaPropuestaDto(zona.Id, asignacion.Repartidor.Id, asignacion.Repartidor.Nombre,
+                        Math.Min(zona.MaxPedidosPorRuta, asignacion.Repartidor.CapacidadMaxima),
+                        asignacion.PedidosEnOrden.Select((p, i) =>
+                        {
+                            var e = estimadas?.GetValueOrDefault(p.Id);
+                            return new ParadaPropuestaDto(p.Id, i + 1, p.ClienteNombre, p.Direccion,
+                                p.CompromisoInicioEn, p.CompromisoFinEn, e?.FinalizacionEn, e?.ExcedeCompromiso ?? false,
+                                antes.TryGetValue(p.Id, out var previo) && previo != asignacion.Repartidor.Id);
+                        }).ToList(),
+                        asignacion.Estimacion?.DistanciaEstimadaKm));
+                    foreach (var p in asignacion.PedidosEnOrden) asignados.Add(p.Id);
+
+                    if (request.Aplicar)
+                    {
+                        var ruta = Ruta.Crear(zona, asignacion.Repartidor, request.Fecha, reloj.GetUtcNow());
+                        foreach (var pedido in asignacion.PedidosEnOrden) ruta.AgregarPedido(pedido);
+                        if (asignacion.Estimacion is { } estimacion) ruta.AplicarEstimacion(estimacion, reloj.GetUtcNow());
+                        db.Rutas.Add(ruta);
+                        creadas.Add(ruta);
+                    }
+                    disponibles.Remove(asignacion.Repartidor); // un repartidor, una ruta por armado
+                }
+                var noAsignados = deZona.Where(p => !asignados.Contains(p.Id)).ToList();
+                sinAsignar += noAsignados.Count;
+                quedanSinRuta += noAsignados.Count(p => antes.ContainsKey(p.Id));
+            }
+
+            var dtos = new List<RutaDto>();
+            if (request.Aplicar)
+            {
+                await db.GuardarAsync(ct);
+                if (tx is not null) await tx.CommitAsync(ct);
+                foreach (var ruta in planificadas) await notificador.RutaActualizadaAsync(ruta.ToDto(), ct);
+                dtos = creadas.Select(r => r.ToDto()).ToList();
+                foreach (var dto in dtos) await notificador.RutaActualizadaAsync(dto, ct);
+                foreach (var pedido in todos) await notificador.PedidoActualizadoAsync(pedido.ToDto(), ct);
+            }
+
+            var paradas = propuestas.SelectMany(p => p.Paradas).ToList();
+            return new ReoptimizacionDto(request.Fecha, request.Aplicar, planificadas.Count, propuestas, sinAsignar,
+                paradas.Count(p => p.CambiaDeRepartidor), quedanSinRuta, paradas.Count(p => p.ExcedeCompromiso), dtos);
+        }
+        finally
+        {
+            if (tx is not null) await tx.DisposeAsync();
+        }
     }
 
     public async Task<RutaDto> ObtenerAsync(Guid id, CancellationToken ct = default) =>

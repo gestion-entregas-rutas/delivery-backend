@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<ICatalogoService, CatalogoService>();
         services.AddScoped<ICarritoService, CarritoService>();
         services.AddScoped<IOrdenService, OrdenService>();
+        services.AddScoped<IUbicacionLocalService, UbicacionLocalService>();
         services.AddScoped<EstimadorRutas>();
         services.AddScoped<IDisponibilidadEntregas, DisponibilidadEntregasService>();
 

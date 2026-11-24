@@ -6,6 +6,9 @@ public interface IRutaService
 {
     /// <summary>Arma las rutas de una fecha (y zona) con todos los pedidos pendientes.</summary>
     Task<ArmadoRutasDto> ArmarRutasAsync(ArmarRutasRequest request, CancellationToken ct = default);
+
+    /// <summary>Rearma las rutas planificadas junto con los pendientes. Sin <c>Aplicar</c> solo devuelve la vista previa.</summary>
+    Task<ReoptimizacionDto> ReoptimizarAsync(ReoptimizarRutasRequest request, CancellationToken ct = default);
     Task<RutaDto> ObtenerAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<RutaDto>> ListarAsync(DateOnly fecha, Guid? zonaId, CancellationToken ct = default);
 

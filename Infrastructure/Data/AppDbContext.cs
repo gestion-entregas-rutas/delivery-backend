@@ -27,6 +27,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<DetalleOrden> DetalleOrdenes => Set<DetalleOrden>();
     public DbSet<PagoOrden> PagosOrden => Set<PagoOrden>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+    public DbSet<UbicacionLocal> UbicacionLocal => Set<UbicacionLocal>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

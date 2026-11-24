@@ -18,11 +18,22 @@ public sealed class EstimadorRutas(IAppDbContext db, ReglasPlanificacion reglas,
     private GeoPoint? origenLocal;
     private bool origenCargado;
 
-    /// <summary>Origen de rutas nuevas: configuración del local o, si falta, el de la última ruta armada con GPS.</summary>
+    /// <summary>
+    /// Origen de rutas nuevas, en este orden: configuración (PlanificacionRutas:Origen*), ubicación del
+    /// local guardada desde el panel y, si falta todo, el origen de la última ruta armada con GPS.
+    /// </summary>
     public async Task<GeoPoint?> OrigenLocalAsync(CancellationToken ct)
     {
         if (origenCargado) return origenLocal;
         origenLocal = reglas.OrigenLocal;
+        if (origenLocal is null)
+        {
+            var guardado = await db.UbicacionLocal.AsNoTracking()
+                .Where(l => l.Id == UbicacionLocal.IdUnico)
+                .Select(l => new { l.Latitud, l.Longitud })
+                .FirstOrDefaultAsync(ct);
+            if (guardado is not null) origenLocal = new GeoPoint(guardado.Latitud, guardado.Longitud);
+        }
         if (origenLocal is null)
         {
             var ultima = await db.Rutas.AsNoTracking().Where(r => r.OrigenLatitud != null && r.OrigenLongitud != null)
