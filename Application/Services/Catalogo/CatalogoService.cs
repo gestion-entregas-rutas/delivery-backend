@@ -262,9 +262,18 @@ public sealed class CatalogoService(IAppDbContext db, TimeProvider reloj) : ICat
 
     private static void ValidarUpsert(ProductoUpsertRequest r, bool requiereVersion)
     {
+        static void Limite(string? valor, int maximo, string campo)
+        {
+            if (valor?.Trim().Length > maximo)
+                throw new DomainException($"{campo} no puede superar {maximo} caracteres.");
+        }
         if (requiereVersion && string.IsNullOrWhiteSpace(r.Version))
             throw new ConflictoException("El producto fue editado por otro usuario. Recarga los datos antes de guardar.", "CONFLICTO_VERSION_PRODUCTO");
         if (string.IsNullOrWhiteSpace(r.Nombre)) throw new DomainException("El nombre es obligatorio.");
+        Limite(r.DescripcionCorta, 1000, "La descripcion corta");
+        Limite(r.ImagenPrincipalUrl, 1000, "La URL de la imagen principal");
+        foreach (var media in r.GaleriaMultimedia ?? []) Limite(media.Url, 1000, "La URL de la galeria");
+        foreach (var texto in r.SobreEsteArticulo ?? []) Limite(texto, 1000, "Una caracteristica del producto");
     }
 
     private async Task ReemplazarDetallesAsync(Guid productoId, ProductoUpsertRequest request, CancellationToken ct, bool nuevo)

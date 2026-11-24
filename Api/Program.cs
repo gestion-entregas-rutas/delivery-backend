@@ -105,6 +105,12 @@ if (args.Contains("--crear-admin"))
     return;
 }
 
+if (args.Contains("--restablecer-admin-local"))
+{
+    await Api.Services.AdministradorInicial.RestablecerLocalAsync(app.Services, builder.Configuration);
+    return;
+}
+
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
