@@ -232,6 +232,7 @@ public sealed class AutenticacionTests
         public DbSet<DetalleOrden> DetalleOrdenes => Set<DetalleOrden>();
         public DbSet<PagoOrden> PagosOrden => Set<PagoOrden>();
         public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
+        public DbSet<UbicacionLocal> UbicacionLocal => Set<UbicacionLocal>();
         public void LimpiarCambios() => ChangeTracker.Clear();
         protected override void OnModelCreating(ModelBuilder b)
         {
