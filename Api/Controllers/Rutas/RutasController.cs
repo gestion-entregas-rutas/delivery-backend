@@ -21,6 +21,15 @@ public sealed class RutasController(IRutaService rutas) : ControllerBase
     public async Task<ActionResult<TransferenciaPedidoDto>> Transferir(Guid id, Guid pedidoId, TransferirPedidoRequest r, CancellationToken ct) =>
         await rutas.TransferirAsync(id, pedidoId, r, ct);
 
+    /// <summary>Recalcula estimaciones y alertas desde el avance real (GPS, entregas). Solo administradores.</summary>
+    [HttpPost("{id:guid}/estimaciones/recalcular")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Administrador")]
+    [ProducesResponseType<RutaDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<RutaDto>> RecalcularEstimaciones(Guid id, CancellationToken ct) =>
+        await rutas.RecalcularEstimacionesAsync(id, ct);
+
     /// <summary>Arma las rutas de una fecha (y zona) con todos los pedidos pendientes.</summary>
     [HttpPost("armar")]
     [ProducesResponseType<ArmadoRutasDto>(StatusCodes.Status200OK)]
@@ -51,7 +60,7 @@ public sealed class RutasController(IRutaService rutas) : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<RutaDto>> AgregarPedido(Guid id, AgregarPedidoARutaRequest request, CancellationToken ct) =>
-        await rutas.AgregarPedidoAsync(id, request.PedidoId, request.Posicion, ct);
+        await rutas.AgregarPedidoAsync(id, request.PedidoId, request.Posicion, ct, request.Forzar);
 
     /// <summary>Ajuste manual: saca un pedido de la ruta y lo devuelve a pendientes.</summary>
     [HttpDelete("{id:guid}/pedidos/{pedidoId:guid}")]

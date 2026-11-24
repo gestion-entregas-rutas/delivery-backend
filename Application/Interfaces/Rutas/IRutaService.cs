@@ -10,10 +10,13 @@ public interface IRutaService
     Task<IReadOnlyList<RutaDto>> ListarAsync(DateOnly fecha, Guid? zonaId, CancellationToken ct = default);
 
     // Ajustes manuales del personal del negocio
-    Task<RutaDto> AgregarPedidoAsync(Guid rutaId, Guid pedidoId, int? posicion, CancellationToken ct = default);
+    Task<RutaDto> AgregarPedidoAsync(Guid rutaId, Guid pedidoId, int? posicion, CancellationToken ct = default, bool forzar = false);
     Task<RutaDto> QuitarPedidoAsync(Guid rutaId, Guid pedidoId, CancellationToken ct = default);
     Task<RutaDto> IniciarAsync(Guid rutaId, CancellationToken ct = default);
     Task<RutaDto> CancelarAsync(Guid rutaId, CancellationToken ct = default);
     Task<RutaDto> ReordenarAsync(Guid rutaId, ReordenarParadasRequest request, CancellationToken ct);
     Task<TransferenciaPedidoDto> TransferirAsync(Guid rutaId, Guid pedidoId, TransferirPedidoRequest request, CancellationToken ct);
+
+    /// <summary>Recalcula las estimaciones con la posición/avance actuales (GPS, entregas registradas).</summary>
+    Task<RutaDto> RecalcularEstimacionesAsync(Guid rutaId, CancellationToken ct);
 }

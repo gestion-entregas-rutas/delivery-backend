@@ -24,6 +24,22 @@ internal static class Extensiones
         }
     }
 
+    private const int ClaveBloqueoPlanificacion = 0x0DE1_1A55;
+
+    /// <summary>
+    /// Serializa, hasta el fin de la transacción actual, las operaciones que comprometen capacidad
+    /// de entrega de una fecha (pg_advisory_xact_lock). Así dos compras simultáneas no reservan el
+    /// mismo último cupo. En proveedores no PostgreSQL (pruebas en memoria) no hace nada.
+    /// </summary>
+    public static async Task BloquearPlanificacionAsync(this IAppDbContext db, DateOnly fecha, CancellationToken ct)
+    {
+        if (db is not DbContext contexto || contexto.Database.CurrentTransaction is null ||
+            contexto.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) != true)
+            return;
+        await contexto.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock({0}, {1})",
+            [ClaveBloqueoPlanificacion, fecha.DayNumber], ct);
+    }
+
     public static IQueryable<Ruta> ConParadas(this IQueryable<Ruta> rutas) =>
         rutas.Include(r => r.Paradas).ThenInclude(p => p.Pedido);
 

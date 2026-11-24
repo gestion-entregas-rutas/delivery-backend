@@ -7,7 +7,8 @@ public sealed class ActualizarPedidoValidator : AbstractValidator<ActualizarPedi
     public ActualizarPedidoValidator()
     {
         RuleFor(x => new RegistrarPedidoRequest(x.ClienteNombre, x.ClienteTelefono, x.Direccion,
-            x.Latitud, x.Longitud, x.FechaEntrega, x.HoraEntrega, x.ZonaId, x.Detalles))
+            x.Latitud, x.Longitud, x.FechaEntrega, x.HoraEntrega, x.ZonaId, x.Detalles,
+            x.CompromisoInicioEn, x.CompromisoFinEn, x.TiempoServicioMinutos))
             .SetValidator(new RegistrarPedidoValidator());
     }
 }

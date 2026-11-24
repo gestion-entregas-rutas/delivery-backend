@@ -6,12 +6,14 @@ using Application.Interfaces;
 using Domain.Entities;
 using Domain.Enums;
 using Domain.Exceptions;
+using Domain.Services;
 using Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
 namespace Application.Services;
 
-public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoService pagos, IPayPalService paypal) : IOrdenService
+public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoService pagos, IPayPalService paypal,
+    IDisponibilidadEntregas disponibilidad, ReglasPlanificacion reglas) : IOrdenService
 {
     private static readonly TimeSpan ExpiracionReserva = TimeSpan.FromMinutes(15);
 
@@ -110,6 +112,15 @@ public sealed class OrdenService(IAppDbContext db, TimeProvider reloj, IPagoServ
                     throw new DomainException("La dirección no tiene cobertura de entrega en una zona activa.");
                 if (d.FechaEntrega < reloj.Hoy())
                     throw new DomainException("La fecha de entrega no puede estar en el pasado.");
+                if (d.CompromisoInicioEn.HasValue != d.CompromisoFinEn.HasValue)
+                    throw new DomainException("Indique el inicio y el fin del intervalo de entrega.");
+                if (d.CompromisoInicioEn is { } inicio && d.CompromisoFinEn is { } fin)
+                {
+                    // Mostrar un intervalo no lo reserva: se vuelve a comprobar aquí, serializado por fecha
+                    // y antes de descontar stock (orden fijo de bloqueos para evitar interbloqueos).
+                    await db.BloquearPlanificacionAsync(d.FechaEntrega, ct);
+                    await disponibilidad.VerificarAsync(d.FechaEntrega, punto, inicio, fin, ct);
+                }
             }
 
             // Reserva atómica de stock (descuento todo-o-nada)
@@ -147,7 +158,11 @@ var numero = $"ORD-{ahora:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8].ToU
             else
             {
                 var d = request.DatosDomicilio!;
-                orden.ConfigurarDomicilio(d.DestinatarioNombre.Trim(), d.DestinatarioTelefono.Trim(), d.DireccionTexto.Trim(), d.Latitud, d.Longitud, d.FechaEntrega, d.HoraEntrega, d.Observaciones);
+                // HoraEntrega se conserva por compatibilidad; con intervalo toma su hora local de inicio.
+                var hora = d.CompromisoInicioEn is { } inicio ? reglas.HoraLocal(inicio) : d.HoraEntrega;
+                orden.ConfigurarDomicilio(d.DestinatarioNombre.Trim(), d.DestinatarioTelefono.Trim(), d.DireccionTexto.Trim(), d.Latitud, d.Longitud, d.FechaEntrega, hora, d.Observaciones);
+                if (d.CompromisoInicioEn is { } desde && d.CompromisoFinEn is { } hasta)
+                    orden.ReservarIntervalo(desde, hasta);
                 estadoSeguimiento = "PendientePago";
             }
 
@@ -161,7 +176,7 @@ var numero = $"ORD-{ahora:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8].ToU
 
             await db.SaveChangesAsync(ct);
 
-            var response = new CheckoutResponse(orden.Id, orden.NumeroOrden, orden.Estado.ToString(), orden.EstadoPago.ToString(), orden.Total, orden.TipoEntrega.ToString(), codigoRetiro ?? orden.CodigoRetiro, orden.PedidoLogisticoId, estadoSeguimiento, pago.Id, pago.Referencia, pago.ExpiraEn);
+            var response = new CheckoutResponse(orden.Id, orden.NumeroOrden, orden.Estado.ToString(), orden.EstadoPago.ToString(), orden.Total, orden.TipoEntrega.ToString(), codigoRetiro ?? orden.CodigoRetiro, orden.PedidoLogisticoId, estadoSeguimiento, pago.Id, pago.Referencia, pago.ExpiraEn, orden.CompromisoInicioEn, orden.CompromisoFinEn);
 
             if (!string.IsNullOrWhiteSpace(idempotencyKey))
             {
@@ -261,6 +276,9 @@ var numero = $"ORD-{ahora:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8].ToU
                     var detallesPedido = InformacionPedido.Crear(null, null, null, null, string.Join(", ", resumen), null, null, null, null);
                     var pedido = Pedido.Registrar(orden.DestinatarioNombre!, orden.DestinatarioTelefono!, orden.DireccionTexto!,
                         punto, zona, orden.FechaEntrega ?? reloj.Hoy(), orden.HoraEntrega ?? new TimeOnly(12, 0), reloj.Hoy(), ahora, detallesPedido);
+                    // La capacidad ya se reservó en checkout; el intervalo pasa al pedido como compromiso.
+                    if (orden.CompromisoInicioEn is { } inicio && orden.CompromisoFinEn is { } fin)
+                        pedido.ConfigurarCompromiso(inicio, fin);
                     db.Pedidos.Add(pedido);
                     pedidoLogisticoId = pedido.Id;
                     estadoSeguimiento = pedido.Estado.ToString();
@@ -336,6 +354,12 @@ var numero = $"ORD-{ahora:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8].ToU
         var ordenes = await db.Ordenes.AsNoTracking().Where(o => o.ClienteId == clienteId).OrderByDescending(o => o.CreadaEn).ToListAsync(ct);
         var pedidoIds = ordenes.Where(o => o.PedidoLogisticoId.HasValue).Select(o => o.PedidoLogisticoId!.Value).Distinct().ToList();
         var pedidos = pedidoIds.Count == 0 ? new Dictionary<Guid, Pedido>() : await db.Pedidos.AsNoTracking().Where(p => pedidoIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var paradas = pedidoIds.Count == 0 ? new Dictionary<Guid, DateTimeOffset?>() :
+            (await db.Rutas.AsNoTracking().Include(r => r.Paradas)
+                .Where(r => r.Paradas.Any(p => pedidoIds.Contains(p.PedidoId))).ToListAsync(ct))
+            .SelectMany(r => r.Paradas).Where(p => pedidoIds.Contains(p.PedidoId))
+            .ToDictionary(p => p.PedidoId, p => p.FinalizacionEstimadaEn);
+        var ahora = reloj.GetUtcNow();
         return ordenes.Select(o =>
         {
             string? seguimiento = null;
@@ -345,7 +369,12 @@ var numero = $"ORD-{ahora:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8].ToU
                 seguimiento = p.Estado.ToString();
             else if (o.EstadoPago != EstadoPago.Confirmado)
                 seguimiento = "PendientePago";
-            return new OrdenMiaDto(o.Id, o.NumeroOrden, o.Estado.ToString(), o.EstadoPago.ToString(), o.Total, o.TipoEntrega.ToString(), o.CreadaEn, o.CodigoRetiro, o.PedidoLogisticoId, seguimiento);
+            Pedido? pedido = o.PedidoLogisticoId is { } pid && pedidos.TryGetValue(pid, out var encontrado) ? encontrado : null;
+            DateTimeOffset? estimada = pedido is not null && paradas.TryGetValue(pedido.Id, out var f) ? f : null;
+            var puntualidad = pedido is null ? null : pedido.Estado == EstadoPedido.Cancelado ? new ResultadoPuntualidad("NoAplica", null) :
+                Puntualidad.Calcular(pedido.CompromisoInicioEn, pedido.CompromisoFinEn, pedido.EntregadoEn, estimada, ahora);
+            return new OrdenMiaDto(o.Id, o.NumeroOrden, o.Estado.ToString(), o.EstadoPago.ToString(), o.Total, o.TipoEntrega.ToString(), o.CreadaEn, o.CodigoRetiro, o.PedidoLogisticoId, seguimiento,
+                pedido?.CompromisoInicioEn ?? o.CompromisoInicioEn, pedido?.CompromisoFinEn ?? o.CompromisoFinEn, estimada, puntualidad);
         }).ToList();
     }
 
@@ -378,7 +407,7 @@ var numero = $"ORD-{ahora:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8].ToU
             seguimiento = pedido?.Estado.ToString() ?? (orden.EstadoPago == EstadoPago.Confirmado ? "Pendiente" : "PendientePago");
         }
         else seguimiento = orden.EstadoPago == EstadoPago.Confirmado ? "Pendiente" : "PendientePago";
-        return new CheckoutResponse(orden.Id, orden.NumeroOrden, orden.Estado.ToString(), orden.EstadoPago.ToString(), orden.Total, orden.TipoEntrega.ToString(), orden.CodigoRetiro, orden.PedidoLogisticoId, seguimiento, pago.Id, pago.Referencia, pago.ExpiraEn);
+        return new CheckoutResponse(orden.Id, orden.NumeroOrden, orden.Estado.ToString(), orden.EstadoPago.ToString(), orden.Total, orden.TipoEntrega.ToString(), orden.CodigoRetiro, orden.PedidoLogisticoId, seguimiento, pago.Id, pago.Referencia, pago.ExpiraEn, orden.CompromisoInicioEn, orden.CompromisoFinEn);
     }
 
     private async Task ExpirarPendientesDeClienteAsync(Guid clienteId, CancellationToken ct)
