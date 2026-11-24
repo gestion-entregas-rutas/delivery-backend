@@ -20,6 +20,23 @@ public class Pedido : Entity
     public TimeOnly HoraEntrega { get; private set; }
     public DateTimeOffset RegistradoEn { get; private set; }
     public DateTimeOffset? EntregadoEn { get; private set; }
+    public DateTimeOffset? CompromisoInicioEn { get; private set; }
+    public DateTimeOffset? CompromisoFinEn { get; private set; }
+    public int? TiempoServicioMinutos { get; private set; }
+
+    public void ConfigurarCompromiso(DateTimeOffset? inicio, DateTimeOffset? fin, int? servicioMinutos = null)
+    {
+        if (Estado != EstadoPedido.Pendiente)
+            throw new DomainException("Solo se modifica el compromiso de un pedido pendiente.");
+        if (inicio.HasValue != fin.HasValue || inicio >= fin || servicioMinutos is < 1 or > 240)
+            throw new DomainException("Indique ambos extremos del intervalo, en orden, y una atención de 1 a 240 minutos.");
+        if (inicio is { } desde && fin is { } hasta && servicioMinutos is { } minutos &&
+            (hasta - desde).TotalMinutes < minutos)
+            throw new DomainException("El intervalo no permite completar el tiempo de atención.");
+        CompromisoInicioEn = inicio?.ToUniversalTime();
+        CompromisoFinEn = fin?.ToUniversalTime();
+        TiempoServicioMinutos = servicioMinutos;
+    }
 
     public EstadoPedido Estado { get; private set; }
     public Guid? RutaId { get; private set; }

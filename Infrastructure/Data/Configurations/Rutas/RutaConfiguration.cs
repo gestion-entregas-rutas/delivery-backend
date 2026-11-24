@@ -13,6 +13,7 @@ public sealed class RutaConfiguration : IEntityTypeConfiguration<Ruta>
         builder.Property(ruta => ruta.Estado).HasConversion<string>().HasMaxLength(20);
         builder.Ignore(ruta => ruta.TieneEspacio);
         builder.Ignore(ruta => ruta.PosicionMinimaInsercion);
+        builder.Ignore(ruta => ruta.ParadasRestantes);
 
         builder.HasOne<Zona>().WithMany().HasForeignKey(ruta => ruta.ZonaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Repartidor>().WithMany().HasForeignKey(ruta => ruta.RepartidorId).OnDelete(DeleteBehavior.Restrict);

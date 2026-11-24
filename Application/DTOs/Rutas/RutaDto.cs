@@ -10,4 +10,10 @@ public sealed record RutaDto(
     int Capacidad,
     EstadoRuta Estado,
     IReadOnlyList<ParadaDto> Paradas,
-    uint Version = 0);
+    uint Version = 0,
+    PuntoDto? Origen = null,
+    DateTimeOffset? SalidaProgramadaEn = null,
+    DateTimeOffset? EstimacionesActualizadasEn = null,
+    string? ModeloEstimacion = null,
+    double? DistanciaEstimadaKm = null,
+    IReadOnlyList<AlertaPuntualidadDto>? Alertas = null);

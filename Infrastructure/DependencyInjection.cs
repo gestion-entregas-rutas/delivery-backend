@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Domain.Services;
 
 namespace Infrastructure;
 
@@ -14,6 +15,10 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
     {
+        var reglas = new ReglasPlanificacion();
+        config.GetSection("PlanificacionRutas").Bind(reglas);
+        reglas.Validar();
+        services.AddSingleton(reglas);
         services.AddDbContext<AppDbContext>(opciones =>
             opciones.UseNpgsql(config.GetConnectionString("DefaultConnection"), n => n.UseNetTopologySuite()));
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());

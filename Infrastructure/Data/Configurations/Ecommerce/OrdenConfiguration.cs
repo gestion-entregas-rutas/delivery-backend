@@ -19,6 +19,8 @@ public sealed class OrdenConfiguration : IEntityTypeConfiguration<Orden>
         b.Property(x => x.IdempotencyKey).HasMaxLength(120);
         b.HasIndex(x => new { x.ClienteId, x.CreadaEn });
         b.HasIndex(x => x.IdempotencyKey);
+        // Reservas temporales de intervalo por fecha (oferta y verificación en checkout).
+        b.HasIndex(x => new { x.FechaEntrega, x.Estado });
 
         b.Property(x => x.RetiroCedula).HasMaxLength(20);
         b.Property(x => x.RetiroNombre).HasMaxLength(150);

@@ -1,4 +1,5 @@
 using Domain.Enums;
+using Domain.Services;
 
 namespace Application.DTOs;
 
@@ -16,7 +17,11 @@ public sealed record PedidoDto(
     DateTimeOffset RegistradoEn,
     DateTimeOffset? EntregadoEn,
     DetallesPedidoDto? Detalles = null,
-    uint Version = 0)
+    uint Version = 0,
+    DateTimeOffset? CompromisoInicioEn = null,
+    DateTimeOffset? CompromisoFinEn = null,
+    int? TiempoServicioMinutos = null,
+    ResultadoPuntualidad? Puntualidad = null)
 {
     public string DestinatarioNombre => ClienteNombre;
     public string DestinatarioTelefono => ClienteTelefono;

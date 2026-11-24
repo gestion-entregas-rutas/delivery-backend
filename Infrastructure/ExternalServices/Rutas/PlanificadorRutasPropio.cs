@@ -1,21 +1,27 @@
 using Domain.Entities;
 using Domain.Interfaces;
 using Domain.ValueObjects;
+using Domain.Services;
+using Domain.Exceptions;
 
 namespace Infrastructure.ExternalServices;
 
 /// <summary>
 /// Planificador CVRP propio (sin librerías externas): agrupa por zona, respeta capacidad por ruta
-/// (mínimo entre zona y repartidor), considera ventanas de tiempo por HoraEntrega y optimiza el orden
-/// de visita con heurística de inserción por cercanía.
+/// (mínimo entre zona y repartidor). Con contexto verifica intervalos de finalización;
+/// sin contexto solo ordena por HoraEntrega y cercanía, sin validar puntualidad.
 /// </summary>
 public sealed class PlanificadorRutasPropio : IPlanificadorRutas
 {
     public IReadOnlyList<AsignacionPlanificada> Planificar(
         Zona zona,
         IReadOnlyList<Pedido> pedidosPendientes,
-        IReadOnlyList<Repartidor> repartidoresDisponibles)
+        IReadOnlyList<Repartidor> repartidoresDisponibles,
+        ContextoPlanificacion? contexto = null)
     {
+        if (contexto is not null) return PlanificarConTiempos(zona, pedidosPendientes, repartidoresDisponibles, contexto);
+        if (pedidosPendientes.Any(p => p.CompromisoFinEn.HasValue))
+            throw new DomainException("Se necesita el origen GPS y la planificación temporal para pedidos con intervalo comprometido.");
         if (pedidosPendientes.Count == 0 || repartidoresDisponibles.Count == 0) return [];
 
         var vehiculos = ConstruirVehiculos(zona, repartidoresDisponibles, pedidosPendientes.Count);
@@ -43,6 +49,53 @@ public sealed class PlanificadorRutasPropio : IPlanificadorRutas
         }
 
         return resultado;
+    }
+
+    private static IReadOnlyList<AsignacionPlanificada> PlanificarConTiempos(Zona zona,
+        IReadOnlyList<Pedido> pedidos, IReadOnlyList<Repartidor> repartidores, ContextoPlanificacion contexto)
+    {
+        contexto.Reglas.Validar();
+        var zonaHoraria = TimeZoneInfo.FindSystemTimeZoneById(contexto.Reglas.ZonaHoraria);
+        var fecha = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(contexto.Salida, zonaHoraria).DateTime);
+        if (pedidos.Any(p => p.ZonaId != zona.Id || p.FechaEntrega != fecha ||
+            p.CompromisoInicioEn is { } inicio && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(inicio, zonaHoraria).DateTime) != fecha ||
+            p.CompromisoFinEn is { } fin && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(fin, zonaHoraria).DateTime) != fecha))
+            throw new DomainException("Los pedidos y sus compromisos deben pertenecer a la fecha y zona de la planificación.");
+
+        // Se consideran TODOS los repartidores libres: la capacidad por sí sola no asegura puntualidad.
+        var vehiculos = repartidores.Where(r => r.EstaDisponible).DistinctBy(r => r.Id)
+            .Select(r => new Vehiculo(r, Math.Min(zona.MaxPedidosPorRuta, r.CapacidadMaxima)))
+            .OrderByDescending(v => v.Capacidad).ThenBy(v => v.Repartidor.Id).ToList();
+        foreach (var pedido in pedidos.DistinctBy(p => p.Id)
+                     .OrderBy(p => p.CompromisoFinEn ?? DateTimeOffset.MaxValue).ThenBy(p => p.HoraEntrega).ThenBy(p => p.Id))
+        {
+            Vehiculo? elegido = null;
+            var posicionElegida = 0;
+            var mejorCosto = double.MaxValue;
+            // Probar primero rutas abiertas; abrir otra si ninguna inserción es viable.
+            foreach (var grupo in new[] { vehiculos.Where(v => v.Pedidos.Count > 0), vehiculos.Where(v => v.Pedidos.Count == 0) })
+            {
+                foreach (var vehiculo in grupo.Where(v => v.Pedidos.Count < v.Capacidad))
+                {
+                    var anterior = CalculadorTiemposRuta.Evaluar(vehiculo.Pedidos, contexto)!;
+                    for (var i = 0; i <= vehiculo.Pedidos.Count; i++)
+                    {
+                        var candidata = vehiculo.Pedidos.ToList();
+                        candidata.Insert(i, pedido);
+                        var estimacion = CalculadorTiemposRuta.Evaluar(candidata, contexto);
+                        if (estimacion is null) continue;
+                        var costo = estimacion.DistanciaEstimadaKm - anterior.DistanciaEstimadaKm;
+                        if (costo >= mejorCosto) continue;
+                        mejorCosto = costo; elegido = vehiculo; posicionElegida = i;
+                    }
+                }
+                if (elegido is not null) break;
+            }
+            elegido?.Pedidos.Insert(posicionElegida, pedido);
+        }
+        return vehiculos.Where(v => v.Pedidos.Count > 0)
+            .Select(v => new AsignacionPlanificada(v.Repartidor, v.Pedidos,
+                CalculadorTiemposRuta.Evaluar(v.Pedidos, contexto))).ToList();
     }
 
     private static List<Vehiculo> ConstruirVehiculos(Zona zona, IReadOnlyList<Repartidor> repartidores, int totalPedidos)

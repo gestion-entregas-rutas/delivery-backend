@@ -10,4 +10,7 @@ public sealed record RegistrarPedidoRequest(
     DateOnly FechaEntrega,
     TimeOnly HoraEntrega,
     Guid? ZonaId = null,
-    DetallesPedidoRequest? Detalles = null);
+    DetallesPedidoRequest? Detalles = null,
+    DateTimeOffset? CompromisoInicioEn = null,
+    DateTimeOffset? CompromisoFinEn = null,
+    int? TiempoServicioMinutos = null);
