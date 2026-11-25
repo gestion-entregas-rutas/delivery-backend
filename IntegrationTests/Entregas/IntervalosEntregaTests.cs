@@ -34,6 +34,7 @@ public sealed class IntervalosEntregaTests
     {
         b.UseSetting("PlanificacionRutas:OrigenLatitud", "0");
         b.UseSetting("PlanificacionRutas:OrigenLongitud", "0");
+        b.UseSetting("PlanificacionRutas:FinOfertaIntervalos", "18:00:00");
     });
 
     private static async Task<Guid> Sembrar(IServiceProvider servicios, int capacidadRepartidor = 4)
